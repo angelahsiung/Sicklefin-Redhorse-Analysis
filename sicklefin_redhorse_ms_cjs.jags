@@ -65,8 +65,9 @@
     }
     
     for(t in 2:n.occ){
-      pdot[t]<-1-(1-pFyke[t])*(1-pPit[t])*(1-pSeine[t]) # det prob of being detected by at least one type of gear
-      N[t]<-n[t]/pdot[t] # estimated pop size 
+      PrNewCap[t] <- 1 - (1-pFyke[t])*(1-pSeine[t])
+      PrRecap[t] <- 1 - (1-pFyke[t])*(1-pSeine[t])*(1-pPit[t])
+      N[t] <- NewCaps[t-1]/PrNewCap[t] + Recaps[t-1]/PrRecap[t]
     }
     }
     

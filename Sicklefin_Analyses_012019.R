@@ -157,9 +157,18 @@ ms.dat.sex$Sex <- ifelse(ms.dat.sex$Sex=="F", 0, 1)
 ## Fyke: 2016-2018 (3-5)
 ## PIT: 2017-2018 (4-5)
 ###################################
+
+### Calculating new and recaps 
+Recap<-NewCap<-rep(NA, 4) # recaps and new caps for 2015-2018
+
+for(n in 1:4){
+  NewCap[n]<-length(f[f==(n+1)]) # number of newly captured individuals 2015-2018
+  Recap[n]<-nrow(ms.cap.hist[!is.na(ms.cap.hist[,n+1])&ms.cap.hist[,n+1]>1&!is.na(ms.cap.hist[,n]),]) # number of recaptured individuals
+} 
+
+
 nind<-dim(ms.cap.hist)[1]
 n.occ<-dim(ms.cap.hist)[2]
-n.state<-8
 
 sink("sicklefin_redhorse_ms_cjs.jags")
 cat("
@@ -229,8 +238,9 @@ cat("
     }
     
     for(t in 2:n.occ){
-      pdot[t]<-1-(1-pFyke[t])*(1-pPit[t])*(1-pSeine[t]) # det prob of being detected by at least one type of gear
-      N[t]<-n[t]/pdot[t] # estimated pop size 
+      PrNewCap[t] <- 1 - (1-pFyke[t])*(1-pSeine[t])
+      PrRecap[t] <- 1 - (1-pFyke[t])*(1-pSeine[t])*(1-pPit[t]) ## wouldn't this also include new caps since this means prob of being captured by any gear whether it's new or recap?
+      N[t] <- NewCaps[t-1]/PrNewCap[t] + Recaps[t-1]/PrRecap[t]
     }
     }
     
@@ -264,15 +274,15 @@ inits <- function() list(z=zi,
 
 
 # Parameters monitored
-params <- c("pFyke", "pSeine", "pPit", "alpha0", "alpha1", "phi.male", "phi.female", "N", "pdot")
+params <- c("pFyke", "pSeine", "pPit", "alpha0", "alpha1", "phi.male", "phi.female", "N",  "PrNewCap", "PrRecap") #",pdot")
 
 # Data
-in.data <- list(y = ms.cap.hist, f = f, n=caps.by.year, nind = dim(ms.cap.hist)[1], n.occ = dim(ms.cap.hist)[2], z = known.state.ms(ms.cap.hist, 1), Sex=ms.dat.sex$Sex)
+in.data <- list(y = ms.cap.hist, f = f, nind = dim(ms.cap.hist)[1], n.occ = dim(ms.cap.hist)[2], z = known.state.ms(ms.cap.hist, 1), Sex=ms.dat.sex$Sex, NewCaps=NewCap, Recaps=Recap)
 
 # MCMC settings
-ni <- 50000
+ni <- 5000
 nt <- 1
-nb <- 1000
+nb <- 100
 nc <- 3
 
 
@@ -306,29 +316,33 @@ rownames(p.table)<-c("Fyke", "PIT Array", "Seine", "Any")
 write.csv(p.table, "SRH_Det_Probs_by_Gear.csv")
 
 ### Plotting male and female survival rates over time
-plot(jc1.stats[26:27,1], ylim=c(0,1), ylab="Survival",xlab="",  xaxt='n', pch=16)
-segments(1:2, jc1.quants[26:27,1], 1:2, jc1.quants[26:27,5], lwd=2)
-axis(1, at=1:2, labels=c("Female", "Male"), cex.lab=2)
+phi.sex<-data.frame(cbind(Sex=c("Female", "Male"),phi.est=round(jc1.stats[26:27, 1],2), lower=round(jc1.quants[26:27, 1],2), upper=round(jc1.quants[26:27, 5],2)))
+
+phi.sex.plot<-ggplot(data=phi.sex, aes(Sex, y=phi.est))
+phi.sex.plot+geom_pointrange(aes(ymin=lower, ymax=upper))+labs(y="Survival Probability")+theme(axis.text=element_text(size=16), axis.title=element_text(size=16, face="bold"))+expand_limits(y=c(0,1))
 
 ### Plotting detection probability by gear
-plot(c(NA, NA, jc1.stats[paste0("pFyke", "[", c(3:5),"]"),1]), ylim=c(0,1), ylab="Detection probability", xlab="Gear type", xaxt='n', pch=16)
-segments(3:5, jc1.quants[paste0("pFyke", "[", c(3:5),"]"),1], 3:5, jc1.quants[paste0("pFyke", "[", c(3:5),"]"),5], lwd=2)
-axis(1, at=1:5, labels=c("2014", "2015", "2016", "2017", "2018"))
-points(c(rep(NA, 3),jc1.stats[paste0("pPit", "[", c(4:5),"]"),1]), col="red", pch=16)
-segments(4:5, jc1.quants[paste0("pPit", "[", c(4:5),"]"),1], 4:5, jc1.quants[paste0("pPit", "[", c(4:5),"]"),5], col="red", lwd=2)
-points(c(NA, jc1.stats[paste0("pSeine", "[", c(2:3),"]"),1], NA, NA), col="blue", pch=16)
-segments(2:3, jc1.quants[paste0("pSeine", "[", c(2:3),"]"),1], 2:3, jc1.quants[paste0("pSeine", "[", c(2:3),"]"),5], col="blue", lwd=2)
-legend(1.5, 1, c("Fyke", "Antenna", "Seine"), col=c("black", "red", "blue"), pch=16, cex=1.5)
+det.prob<-cbind(jc1.stats[7:21, 1], jc1.quants[7:21, 1], jc1.quants[7:21, 5])
+
+par(mar=c(5,5,5,5))
+plot(c(NA, jc1.stats[paste0("pFyke", "[", c(3:5),"]"),1]), ylim=c(0,1), ylab="Detection probability", xlab=NA, xaxt='n', pch=16, cex.lab=2, cex.axis=1.5)
+segments(2:4, jc1.quants[paste0("pFyke", "[", c(3:5),"]"),1], 2:4, jc1.quants[paste0("pFyke", "[", c(3:5),"]"),5], lwd=2)
+axis(1, at=1:4, labels=c("2015", "2016", "2017", "2018"), cex.axis=1.5)
+points(c(rep(NA, 2),jc1.stats[paste0("pPit", "[", c(4:5),"]"),1]), col="red", pch=16)
+segments(3:4, jc1.quants[paste0("pPit", "[", c(4:5),"]"),1], 3:4, jc1.quants[paste0("pPit", "[", c(4:5),"]"),5], col="red", lwd=2)
+points(x=1:4+0.02, c(jc1.stats[paste0("pSeine", "[", c(2:3),"]"),1], NA, NA), col="blue", pch=16)
+segments(1:2+0.02, jc1.quants[paste0("pSeine", "[", c(2:3),"]"),1], 1:2+0.02, jc1.quants[paste0("pSeine", "[", c(2:3),"]"),5], col="blue", lwd=2)
+legend(1, 1, c("Fyke", "Antenna", "Seine"), col=c("black", "red", "blue"), pch=16, cex=1.5)
 
 ### detection probability by any gear
-plot(jc1.stats[paste0("pdot", "[", 2:5,"]"),1], ylab="Overall Detection Probability", xlab=NA, ylim=c(0, 1), xaxt='n', pch=16)
-segments(1:4, jc1.quants[paste0("pdot", "[", 2:5,"]"),1], 1:4, jc1.quants[paste0("pdot", "[", 2:5,"]"),5], lwd=2)
-axis(1, at=1:4, labels=c("2015", "2016", "2017", "2018"))
+overall.det.prob<-data.frame(cbind(Year=2015:2018, det.prob=jc1.stats[paste0("pdot", "[", 2:5,"]"),1], lower=jc1.quants[paste0("pdot", "[", 2:5,"]"),1], upper=jc1.quants[paste0("pdot", "[", 2:5,"]"),5]))
+overall.p.plot<-ggplot(overall.det.prob, aes(Year, y=det.prob, ymin=lower, ymax=upper))
+overall.p.plot+geom_pointrange() + labs(y="Detection Probability")+theme(axis.text=element_text(size=16), axis.title=element_text(size=16, face="bold"))
 
 ### Plotting population size
-plot(jc1.stats[1:4,1], ylab="Population Size", ylim=c(0, 750), xlab=NA, xaxt='n', pch=16)
-segments(1:4, jc1.quants[1:4,1], 1:4, jc1.quants[1:4,5], lwd=2)
-axis(1, at=1:4, labels=c("2015", "2016", "2017", "2018"))
+pop.size<-data.frame(cbind(Year=c(2015:2018),pop.est=jc1.stats[1:4, 1], lower=jc1.quants[1:4, 1], upper=jc1.quants[1:4, 5]))
+pop.size.plot<-ggplot(pop.size, aes(Year, y=pop.est, ymin=lower, ymax=upper))
+pop.size.plot+geom_pointrange() + labs(y="Population Size")+theme(axis.text=element_text(size=16), axis.title=element_text(size=16, face="bold"))
 
 
 #######################################

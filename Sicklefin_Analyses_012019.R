@@ -98,7 +98,7 @@ ms.dat$`Seining`<-ifelse(ms.dat$`Seining`==1, "S", 0)
 ms.dat$`Trapping (Weir or Fyke)`<-ifelse(ms.dat$`Trapping (Weir or Fyke)`==1, "T", 0)
 
 # Assign simpler column names
-colnames(ms.dat)<-c("ID", "Year", "PIT", "Sein", "Trap")
+colnames(ms.dat)<-c("ID", "Year", "Var3", "PIT", "Sein", "Trap")
 
 # Using paste function to denote "state" of captured individual based on gear(s) with which it was captured
 for(i in 1:nrow(ms.dat)){
@@ -109,7 +109,7 @@ for(i in 1:nrow(ms.dat)){
 }
 
 # Turn table into wide shape
-ms.dat<-ms.dat%>%
+ms.dat <- ms.dat %>%
   spread(Year, state)
 
 # extract capture history from table
@@ -124,17 +124,18 @@ ms.cap.hist<-ms.cap.hist%>%
   group_by(ID) %>%
   summarise_all(coalesce_by_column)
 
-ms.cap.hist<-ms.cap.hist[,2:6]
+#ms.cap.hist<-ms.cap.hist[,2:6]
+ms.cap.hist <- read.csv("Sicklefin Capture History.csv")[,-1]
 
 # Creating capture history for multi-state analysis
 get.first<-function(x) min(which(!is.na(x)))
 f<-apply(ms.cap.hist, 1, get.first)
 
-for (i in 1:nrow(ms.cap.hist)){
-  for (j in f[i]:ncol(ms.cap.hist)){
-    ms.cap.hist[i,j]<-ifelse(is.na(ms.cap.hist[i,j]), 1, ifelse(ms.cap.hist[i,j]=="S", 2, ifelse(ms.cap.hist[i,j]=="T", 3, ifelse(ms.cap.hist[i,j]=="P", 4,ifelse(ms.cap.hist[i,j]=="PT", 5, ifelse(ms.cap.hist[i,j]=="ST", 6, ms.cap.hist[i,j]))))))
-  }
-}
+## for (i in 1:nrow(ms.cap.hist)){
+##   for (j in f[i]:ncol(ms.cap.hist)){
+##     ms.cap.hist[i,j]<-ifelse(is.na(ms.cap.hist[i,j]), 1, ifelse(ms.cap.hist[i,j]=="S", 2, ifelse(ms.cap.hist[i,j]=="T", 3, ifelse(ms.cap.hist[i,j]=="P", 4,ifelse(ms.cap.hist[i,j]=="PT", 5, ifelse(ms.cap.hist[i,j]=="ST", 6, ms.cap.hist[i,j]))))))
+##   }
+## }
 
 ms.cap.hist<-as.matrix(ms.cap.hist) # Capture history
 
@@ -146,7 +147,7 @@ for (i in 1:nrow(ms.dat.sex)){
   #ms.dat.sex$Unknown[i]<-ifelse(ms.dat.sex$Unknown[i]!=0, "U", NA)
 }
 ms.dat.sex$Sex <- coalesce(ms.dat.sex$Female, ms.dat.sex$Male)
-ms.dat.sex$Sex <- ifelse(ms.dat.sex$Sex=="F", 0, 1) 
+ms.dat.sex$Sex <- ifelse(ms.dat.sex$Sex=="F", 0, 1)
 
 
 ### Multi-state Model
@@ -158,13 +159,13 @@ ms.dat.sex$Sex <- ifelse(ms.dat.sex$Sex=="F", 0, 1)
 ## PIT: 2017-2018 (4-5)
 ###################################
 
-### Calculating new and recaps 
+### Calculating new and recaps
 Recap<-NewCap<-rep(NA, 4) # recaps and new caps for 2015-2018
 
 for(n in 1:4){
   NewCap[n]<-length(f[f==(n+1)]) # number of newly captured individuals 2015-2018
   Recap[n]<-nrow(ms.cap.hist[!is.na(ms.cap.hist[,n+1])&ms.cap.hist[,n+1]>1&!is.na(ms.cap.hist[,n]),]) # number of recaptured individuals
-} 
+}
 
 
 nind<-dim(ms.cap.hist)[1]
@@ -179,12 +180,12 @@ cat("
 
     for(t in 1:2){
       pFyke[t]<-0 # det prob zero during years when fyke was not used
-    }                                        
+    }
     for(t in 3:n.occ){
       p.d[(t-2)] ~ dunif(0,1) # Pr(catch in fyke net)      #### FIRST 3 PLACES IN p.d RESERVED FOR RANDOM pFyke VALUES
       pFyke[t] <- p.d[(t-2)]
     }
-    
+
     for(t in 1:3){
       p.d[(t+3)] ~ dunif(0,1)                              #### SLOTS 4-6 IN p.d RESERVED FOR RANDOM pSeine VALUES
       pSeine[t] <- p.d[(t+3)]
@@ -192,7 +193,7 @@ cat("
     for(t in 4:n.occ){
       pSeine[t] <-0 # det prob zero during years when seine was not used
     }
-    
+
     for(t in 1:3){
       pPit[t]<-0 # det prob zero during years when PIT antenna was not set up
     }
@@ -203,12 +204,12 @@ cat("
 
     phi.male <- 1/(1+exp(-(alpha0+alpha1)))   # back-transformed male survival rates
     phi.female <- 1/(1+exp(-(alpha0)))   # back-transformed female survival rates
-    
+
     for (i in 1:nind){
     logit(phi[i]) <- alpha0 + alpha1*Sex[i]
     }
 
- 
+
     for(t in 1:n.occ){
     cap.probs[1,t,1] <- (1-pSeine[t])*(1-pFyke[t])*(1-pPit[t]) # Pr(not detected|alive)
     cap.probs[1,t,2] <- pSeine[t]*(1-pFyke[t])*(1-pPit[t]) # Pr(detected in seine, but not by other gear)
@@ -236,14 +237,14 @@ cat("
       y[i,t] ~ dcat(cap.probs[state[i,t],t,1:8])
     }
     }
-    
+
     for(t in 2:n.occ){
       PrNewCap[t] <- 1 - (1-pFyke[t])*(1-pSeine[t])
       PrRecap[t] <- 1 - (1-pFyke[t])*(1-pSeine[t])*(1-pPit[t]) ## wouldn't this also include new caps since this means prob of being captured by any gear whether it's new or recap?
       N[t] <- NewCaps[t-1]/PrNewCap[t] + Recaps[t-1]/PrRecap[t]
     }
     }
-    
+
     ",fill = TRUE)
 sink()
 
@@ -268,7 +269,7 @@ for(i in 1:nrow(ms.cap.hist)) {
 }
 
 
-inits <- function() list(z=zi, 
+inits <- function() list(z=zi,
                          p.d = runif(8, 0, 1),
                          alpha0 = runif(1, -10, 10), alpha1 = runif(1, -10, 10))
 
@@ -356,16 +357,16 @@ cat("
     #alpha0 ~ dnorm(0,0.37)
     #alpha1 ~ dnorm(0,0.37)
     gamma ~ dunif(0,1)
-    
+
 
     for(t in 1:2){
         pFyke[t]<-0 # det prob zero during years when fyke was not used
-    }                                        
+    }
     for(t in 3:n.occ){
     p.d[(t-2)] ~ dunif(0,1) # Pr(catch in fyke net)      #### FIRST 3 PLACES IN p.d RESERVED FOR RANDOM pFyke VALUES
     pFyke[t] <- p.d[(t-2)]
     }
-    
+
     for(t in 1:3){
     p.d[(t+3)] ~ dunif(0,1)                              #### SLOTS 4-6 IN p.d RESERVED FOR RANDOM pSeine VALUES
     pSeine[t] <- p.d[(t+3)]
@@ -373,7 +374,7 @@ cat("
     for(t in 4:n.occ){
     pSeine[t] <-0 # det prob zero during years when seine was not used
     }
-    
+
     for(t in 1:3){
     pPit[t]<-0 # det prob zero during years when PIT antenna was not set up
     }
@@ -391,8 +392,8 @@ cat("
     ps[3,1] <- 0
     ps[3,2] <- 0
     ps[3,3] <- 1
-    
-    cap.probs[1,1] <- 1 # net yet entered    
+
+    cap.probs[1,1] <- 1 # net yet entered
     cap.probs[1,2] <- 0
     cap.probs[1,3] <- 0
     cap.probs[1,4] <- 0
@@ -418,7 +419,7 @@ cat("
     cap.probs[3,6] <- 0
     cap.probs[3,7] <- 0
     cap.probs[3,8] <- 0
-    
+
     for (i in 1:M){
     z[i,1] <- 1 # All M individuals are in state 1 at t=1
     for (t in 2:n.occ){
@@ -428,23 +429,23 @@ cat("
     y[i,t] ~ dcat(cap.probs[state[i,t], 1:8])
     }
     }
-    
+
     for(t in 1:(n.occ-1)){
     qgamma[t] <- 1-gamma
     }
-    
+
     cprob[1] <- gamma
-    
+
     for(t in 2:(n.occ-1)){
     cprob[t] <- gamma*prod(qgamma[1:(t-1)])
     }
-    
+
     psi <- sum(cprob[])   # Inclusion probability
-    
+
     for(t in 1:(n.occ-1)){
     b[t]<-cprob[t]/psi      # Entry probability
     }
-    
+
     for(i in 1:M){
     for(t in 2:n.occ){
     al[i,t-1] <- equals(z[i,t], 2)
@@ -454,19 +455,19 @@ cat("
     }
     alive[i] <- sum(al[i,])
     }
-    
+
     for(t in 1:(n.occ-1)){
     N[t] <- sum(al[,t])
     B[t] <- sum(d[,t])
     }
-    
+
     # for(i in 1:M){
     # w[i] <- 1-equals(alive[i], 0)
     # }
     #Nsuper <- sum(w[])
     }
-    
-    
+
+
     ",fill = TRUE)
 sink()
 
@@ -497,7 +498,7 @@ for (i in 1:nrow(zi)){
 zi<-data.matrix(zi)
 
 inits <- function() list(z=cbind(rep(NA, dim(zi)[1]), zi[, -1]),
-                         phi = runif(1, 0, 1), 
+                         phi = runif(1, 0, 1),
                           p.d.=runif(8, 0, 1))
 
 
@@ -573,7 +574,7 @@ cat("
     #priors
     omega ~ dunif(0, 1)
     p ~dunif(0, 1)
-    
+
     #likelihood
     for (i in 1:M){
     z[i] ~ dbern(omega)
@@ -674,25 +675,25 @@ cat("
     ## Priors & constraints
     for (i in 1:M) {
     for (t in 1:(n.occasions-1)) {
-    phi[i, t] <- mean.phi 
+    phi[i, t] <- mean.phi
     }
     for (t in 1:n.occasions) {
-    p[i, t] <- mean.p 
+    p[i, t] <- mean.p
     }
     }
     mean.phi ~ dunif(0, 1)        ## mean.phi is not updated if phi.vary=1!
     mean.p ~ dunif(0, 1)          ## mean.p is not updated if p.vary=1!
-    
+
     for (t in 1:n.occasions) {
     gamma[t] ~ dunif(0, 1)
     }
-    
 
-    
+
+
     ## Likelihood
     for (i in 1:M){
     z[i, 1] ~ dbern(gamma[1])        # First occasion, state process
-    
+
     # First occasion, observation process
     for(j in 1:nss[1]){
       mu1[i,j]<-z[i,1]*p[i,j]
@@ -714,7 +715,7 @@ cat("
     }
     }
     }
-    
+
     ## Calculate derived population parameters
     #   Entry probability
     for (t in 1:n.occasions) {  qgamma[t] <- 1-gamma[t]  }
@@ -722,7 +723,7 @@ cat("
     for (t in 2:n.occasions) {  cprob[t] <- gamma[t] * prod(qgamma[1:(t-1)])   }
     psi <- sum(cprob[])                                    # Inclusion probability
     for (t in 1:n.occasions) {  b[t] <- cprob[t] / psi  }  # Entry probability
-    
+
     #   Population size and recruitment
     for (i in 1:M) {
     recruit[i, 1] <- z[i, 1]
@@ -733,9 +734,9 @@ cat("
     B[t] <- sum(recruit[1:M, t])			# Number of entries
     f[t] <- B[t]/N[t]                 # Per capita entry probability
     }
-    
+
     for (t in 2:n.occasions) { lamda[t] <- N[t]/N[t-1]}  # Population growth rate
-    
+
     #   Superpopulation size
     for (i in 1:M) {
     Nind[i] <- sum(z[i, 1:n.occasions])
@@ -761,7 +762,7 @@ params <- c("mean.phi", "mean.p", "time.phi", "time.p", "N", "B", "Nsuper", "psi
 ni <- 5000
 nt <- 1
 nb <- 2000
-nc <- 3 
+nc <- 3
 
 
 # Burn in the model
@@ -769,3 +770,48 @@ sr.robust.jm1<-jags.model(data=in.data, inits = inits, file = "sicklefin_redhors
                    n.chains = nc, n.adapt = nb, quiet = F)
 
 sr.robust.jc1<-coda.samples(model=sr.robust.jm1, variable.names=params, n.iter=ni, thin=nt)
+
+
+
+
+
+
+
+
+
+
+
+
+## Model with effort data
+
+#caphist.in <- read.csv("Sicklefin Capture History.csv")[,-1]
+
+#head(caphist.in)
+
+## Data
+dat2 <- in.data
+#dat2$y <- data.matrix(caphist.in)
+dat2$fykeEffort <- c(0, 0, 4, 7, 7)
+dat2$pitEffort <- c(0, 0, 0, 1, 4)
+
+
+str(dat2)
+
+# Initial values
+inits2 <- function() list(z = zi, phi = runif(2, 0.5, 1))
+
+# Parameters monitored
+params2 <- c("pFyke", "pSeine", "pPit", "N", "phi", "PrNewCap", "PrRecap")
+
+
+sr.ms.jm2 <- jags.model(data=dat2, inits = inits2, file = "mscjs_phiSex_pGearEffort.jag",
+                        n.chains = 1, n.adapt = 100, quiet = F)
+
+sr.ms.jc2 <- coda.samples(sr.ms.jm2, params2, n.iter=3000)
+
+plot(sr.ms.jc2, ask=TRUE)
+
+(ss2 <- summary(sr.ms.jc2))
+
+plot(1:4, ss2$quant[1:4,3], ylim=c(0, 2000))
+segments(1:4, ss2$quant[1:4,1], 1:4, ss2$quant[1:4,5])

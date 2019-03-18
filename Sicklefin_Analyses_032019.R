@@ -446,11 +446,12 @@ pop.size.plot+geom_pointrange(size=1) + labs(y="Population Size")+theme(axis.tex
 
 #######################################
 ####### Multistate J-S Model ##########
+#######################################
 
 ## Convert capture data for CJS model to data for JS model
-#ms.cap.hist[is.na(ms.cap.hist)]<-1 # if NA, assign 1 for "not seen"
+ms.cap.hist[is.na(ms.cap.hist)]<-1 # if NA, assign 1 for "not seen"
 
-CH.du<-as.matrix(cbind(rep(1, dim(ms.cap.hist)[1]), ms.cap.hist)) # add extra sampling occ in the beginning
+CH.du<-as.matrix(cbind(rep(1, dim(ms.cap.hist)[1]), ms.cap.hist)) # add extra (dummy) sampling occ in the beginning (Kerry and Schaub 2012)
 colnames(CH.du)<-NULL
 
 nz<-1000 # augmented individuals
@@ -458,17 +459,20 @@ nz<-1000 # augmented individuals
 ms.js.CH.aug<-rbind(CH.du, matrix(1, ncol=dim(CH.du)[2], nrow=nz)) # data agumentation
 
 
-dat3<-dat2
-dat3$y<-ms.js.CH.aug
-dat3$M<-dim(ms.js.CH.aug)[1]
-dat3$Sex<-c(dat2$Sex,rep(1, nz/2), rep(2, nz/2))
-dat3$n.occ<-6
+dat3<-list(y = ms.js.CH.aug, n.occ = dim(ms.js.CH.aug)[2], Sex=c(ms.dat.sex$Sex, rep(1, nz/2), rep(2, nz/2)), M=dim(ms.js.CH.aug)[1]) #,NewCaps=NewCap, Recaps=Recap)
+dat3$fykeEffort <- c(0, 0, 0, 2.5, 7, 4)
+dat3$pitEffort <- c(0, 0, 0, 0, 1, 5.25)
+
 zi<-ms.js.CH.aug
-zi<-ifelse(zi>1,2,zi) # initial value for z. If observed, 2, if not, 1
-inits <- function() list(z=cbind(rep(NA, dim(ms.js.CH.aug)[1]), zi[, -1]), phi= runif(2, 0.5, 1))
+for(i in 1:nrow(zi)){
+  for(j in 1:ncol(zi)){
+    zi[i,j]<-ifelse(zi[i,j]>1, 2, zi[i,j])
+  }
+}
+inits <- function() {list(z=cbind(rep(NA, dim(ms.js.CH.aug)[1]), zi[, -1]), phi= runif(2, 0.5, 1))}
                          
 # Parameters monitored
-params <- c("pFyke", "pSeine", "pPit", "phi", "gamma", "Nsuper", "N", "B", "psi")
+params <- c("pFyke", "pSeine", "pPit", "phi", "gamma") #, "Nsuper", "N", "B", "psi")
 
 # MCMC settings
 ni <- 5000

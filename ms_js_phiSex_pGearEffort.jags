@@ -12,26 +12,25 @@ for(t in 1:(n.occ-1)){
 
 # We don't have much effort info for seine
 # Apparently no seining happened in years 4 and 5
-pSeine[1] <- 0
+pSeine[1] <- 0  # dummy occasion
 pSeine[2] <- p0seine #dunif(0,1)
 pSeine[3] <- p0seine #dunif(0,1)
 pSeine[4] <- p0seine
 pSeine[5] <- 0
 pSeine[6]<-0
 
-for(t in 1:6) {                   # first occasion is dummy occasion
+pFyke[1]<-0 # dummy occasion
+pPit[1]<-0  # dummy occasion
+
   # Effective capture probability in fyke net in year t
   # fykeEffort should be the number of days of effort in each year
-  pFyke[1]<-0
-  pPit[1]<-0
-  for(t in 2:6){
-  pFyke[t] <-  1-(1-p0fyke)^fykeEffort[t-1]
+  for(t in 2:n.occ){
+  pFyke[t] <-  1-(1-p0fyke)^fykeEffort[t]
   # pitEffort is the number of antanae run each year. (Time was constant among years)
-  pPit[t]  <- 1-(1-p0pit)^pitEffort[t-1]
+  pPit[t]  <- 1-(1-p0pit)^pitEffort[t]
   }
-}
 
-for (i in 1:M){
+for(i in 1:M){
 for(t in 1:(n.occ-1)){
   ps[1,t,1] <- 1-gamma[t]
   ps[1,t,2] <- gamma[t]
@@ -42,9 +41,8 @@ for(t in 1:(n.occ-1)){
   ps[3,t,1] <- 0
   ps[3,t,2] <- 0
   ps[3,t,3] <- 1
-}
-for(t in 2:n.occ){
-  cap.probs[1,t,1] <- 1 # Not yet entered
+
+  cap.probs[1,t,1] <- 1 # Not yet entered, thus not detected
   cap.probs[1,t,2] <- 0
   cap.probs[1,t,3] <- 0
   cap.probs[1,t,4] <- 0
@@ -68,57 +66,18 @@ for(t in 2:n.occ){
   cap.probs[3,t,6] <- 0
   cap.probs[3,t,7] <- 0
   cap.probs[3,t,8] <- 0
+  }
 }
-}
-
 
     
   for (i in 1:M){
     z[i, 1] <- 1 # All individuals are in state 1 at t=1
-#    for(t in 1:f[i]) {
-#      survivor[i,t] <- 0
-#    }
     for (t in 2:n.occ){
-      z[i,t] ~ dcat(ps[z[i,t-1], t-1,]) # Actual alive/dead state (partially observed)
+      z[i,t] ~ dcat(ps[z[i,t-1], t-1,]) # Actual state (alive/dead/not yet entered)
       #state[i,t] <- ifelse(z[i,t]==2, 1, 2)
-      y[i,t] ~ dcat(cap.probs[z[i,t],t-1,1:8])
-#      survivor[i,t] <- z[i,t]>0
+      y[i,t] ~ dcat(cap.probs[z[i,t],t-1,])
     }
   }
-  
-for(t in 1:(n.occ-1)){
-    qgamma[t] <- 1-gamma[t]
-    }
-    
-    cprob[1] <- gamma[1]
-    
-    for(t in 2:(n.occ-1)){
-    cprob[t] <- gamma[t]*prod(qgamma[1:(t-1)])
-    }
-    
-    psi <- sum(cprob[])   # Inclusion probability
-    
-    for(t in 1:(n.occ-1)){
-    b[t]<-cprob[t]/psi      # Entry probability
-    }
-    
-for( i in 1:M){
-  for(t in 2:n.occ){
-    al[i,t-1]<-equals(z[i,t],1)
-  }
-  for(t in 1:(n.occ-1)){
-    d[i,t]<-equals(z[i,t]-al[i,t], 0)
-  }
-  alive[i]<-sum(al[i,])
-for(t in 1:(n.occ-1)){
-  N[t]<-sum(al[,t])
-  B[t]<-sum(d[,t])
-}
-for(i in 1:M){
-  w[i]<-1-equals(alive[i],0)
-}
-Nsuper<-sum(w[])
-}
 }
     
     

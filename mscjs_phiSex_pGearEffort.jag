@@ -1,8 +1,8 @@
-data{
-  for(i in 1:nind) {  
-    sex12[i] <- ifelse(equals(Sex[i],0), 1, 2)
-  }
-}
+#data{
+#  for(i in 1:nind) {  
+#    sex12[i] <- ifelse(equals(Sex[i],0), 1, 2)
+#  }
+#}
 
 
 

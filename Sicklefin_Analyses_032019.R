@@ -351,7 +351,7 @@ pop.size.plot+geom_pointrange() + labs(y="Population Size")+theme(axis.text=elem
 ####################################
 
 ## Effort
-effort<-read.csv("SRH_Effort_v1.csv", header=T)
+effort<-read.csv("SRH_Effort_v2.csv", header=T)
 fyke.eff<-tapply(effort$UB_FYKE, effort$Year, sum)
 pit.eff<-aggregate(effort[,4:7], by=list(effort$Year), sum)
 rowSums(pit.eff[,2:5])
@@ -447,7 +447,8 @@ pop.size.plot+geom_pointrange(size=1) + labs(y="Population Size")+theme(axis.tex
 #######################################
 ####### Multistate J-S Model ##########
 #######################################
-
+## Read in capture history
+ms.cap.hist<-read.csv("Sicklefin Capture History.csv")
 ## Convert capture data for CJS model to data for JS model
 ms.cap.hist[is.na(ms.cap.hist)]<-1 # if NA, assign 1 for "not seen"
 
@@ -458,7 +459,15 @@ nz<-1000 # augmented individuals
 
 ms.js.CH.aug<-rbind(CH.du, matrix(1, ncol=dim(CH.du)[2], nrow=nz)) # data agumentation
 
-
+# Extracting sex covariate
+ms.dat.sex<-dcast(dat, dat$Individual_ID~dat$Sex)
+for (i in 1:nrow(ms.dat.sex)){
+  ms.dat.sex$Female[i]<-ifelse(ms.dat.sex$Female[i]!=0, "F", NA)
+  ms.dat.sex$Male[i]<-ifelse(ms.dat.sex$Male[i]!=0, "M", NA)
+  #ms.dat.sex$Unknown[i]<-ifelse(ms.dat.sex$Unknown[i]!=0, "U", NA)
+}
+ms.dat.sex$Sex <- coalesce(ms.dat.sex$Female, ms.dat.sex$Male)
+ms.dat.sex$Sex <- ifelse(ms.dat.sex$Sex=="F", 1, 2) 
 dat3<-list(y = ms.js.CH.aug, n.occ = dim(ms.js.CH.aug)[2], Sex=c(ms.dat.sex$Sex, rep(1, nz/2), rep(2, nz/2)), M=dim(ms.js.CH.aug)[1]) #,NewCaps=NewCap, Recaps=Recap)
 dat3$fykeEffort <- c(0, 0, 0, 2.5, 7, 4)
 dat3$pitEffort <- c(0, 0, 0, 0, 1, 5.25)

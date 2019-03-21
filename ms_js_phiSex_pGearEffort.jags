@@ -1,5 +1,5 @@
 model{
-
+## Priors
 phi[1] ~ dunif(0,1) # Annual survival prob for females
 phi[2] ~ dunif(0,1) # male survival
 
@@ -7,7 +7,7 @@ p0fyke ~ dunif(0,1)   # Capture prob in fyke when effort is 1
 p0pit ~ dunif(0,1)
 p0seine ~ dunif(0,1)
 for(t in 1:(n.occ-1)){
-  gamma[t] ~ dunif(0,1)
+  gamma[t] ~ dunif(0,1) # entry probabilities
 }
 
 # We don't have much effort info for seine
@@ -26,22 +26,28 @@ pPit[1]<-0  # dummy occasion
   # fykeEffort should be the number of days of effort in each year
   for(t in 2:n.occ){
   pFyke[t] <-  1-(1-p0fyke)^fykeEffort[t]
-  # pitEffort is the number of antanae run each year. (Time was constant among years)
+  # pitEffort is ratio of number of sampling days across all antenna
   pPit[t]  <- 1-(1-p0pit)^pitEffort[t]
   }
 
+# probabilities of state S(t+1) given S(t)
 for(i in 1:M){
 for(t in 1:(n.occ-1)){
-  ps[1,t,1] <- 1-gamma[t]
-  ps[1,t,2] <- gamma[t]
-  ps[1,t,3] <- 0
-  ps[2,t,1] <- 0
-  ps[2,t,2] <- phi[Sex[i]]
-  ps[2,t,3] <- 1-phi[Sex[i]]
-  ps[3,t,1] <- 0
-  ps[3,t,2] <- 0
-  ps[3,t,3] <- 1
 
+  ps[1,i,t,1] <- 1-gamma[t]	# Pr(not being recruited)
+  ps[1,i,t,2] <- gamma[t] 	# Pr(not yet entered to alive)
+  ps[1,i,t,3] <- 0 	# can't go from not yet entered to dead
+  ps[2,i,t,1] <- 0 	# can't go from alive to not yet alive
+  ps[2,i,t,2] <- phi[Sex[i]] 	# survival prob based on sex of individual
+  ps[2,i,t,3] <- 1-phi[Sex[i]] 	# Pr(not surviving til next period)
+  ps[3,i,t,1] <- 0 	# if dead, can't become not yet entered
+  ps[3,i,t,2] <- 0 	# if dead, can't be come alive
+  ps[3,i,t,3] <- 1 	# if dead, remain dead
+  }
+}
+
+# probabilities of O(t) given S(t)
+for(t in 1:n.occ){
   cap.probs[1,t,1] <- 1 # Not yet entered, thus not detected
   cap.probs[1,t,2] <- 0
   cap.probs[1,t,3] <- 0
@@ -52,12 +58,12 @@ for(t in 1:(n.occ-1)){
   cap.probs[1,t,8] <- 0
   cap.probs[2,t,1] <- (1-pSeine[t])*(1-pFyke[t])*(1-pPit[t]) # Pr(not detected|alive)
   cap.probs[2,t,2] <- pSeine[t]*(1-pFyke[t])*(1-pPit[t]) # Pr(detected in seine, but not by other gear)
-  cap.probs[2,t,3] <- pFyke[t]*(1-pSeine[t])*(1-pPit[t])
-  cap.probs[2,t,4] <- pPit[t]*(1-pFyke[t])*(1-pSeine[t])
-  cap.probs[2,t,5] <- pFyke[t]*pPit[t]*(1-pSeine[t])
-  cap.probs[2,t,6] <- pSeine[t]*pFyke[t]*(1-pPit[t])
-  cap.probs[2,t,7] <- pSeine[t]*pPit[t]*(1-pFyke[t])
-  cap.probs[2,t,8] <- pSeine[t]*pFyke[t]*pPit[t]
+  cap.probs[2,t,3] <- pFyke[t]*(1-pSeine[t])*(1-pPit[t]) # Pr(detected in fyke, but not by other gear)
+  cap.probs[2,t,4] <- pPit[t]*(1-pFyke[t])*(1-pSeine[t]) # Pr(detected by antenna, but not by other gear)
+  cap.probs[2,t,5] <- pFyke[t]*pPit[t]*(1-pSeine[t]) # Pr(detected by fyke and antenna)
+  cap.probs[2,t,6] <- pSeine[t]*pFyke[t]*(1-pPit[t]) # Pr(detected by seine and fyke)
+  cap.probs[2,t,7] <- pSeine[t]*pPit[t]*(1-pFyke[t]) # Pr(detected by seine and antenna)
+  cap.probs[2,t,8] <- pSeine[t]*pFyke[t]*pPit[t] # Pr(detected by all three gears)
   cap.probs[3,t,1] <- 1 # If dead, can't be detected
   cap.probs[3,t,2] <- 0
   cap.probs[3,t,3] <- 0
@@ -66,18 +72,42 @@ for(t in 1:(n.occ-1)){
   cap.probs[3,t,6] <- 0
   cap.probs[3,t,7] <- 0
   cap.probs[3,t,8] <- 0
-  }
 }
-
     
   for (i in 1:M){
     z[i, 1] <- 1 # All individuals are in state 1 at t=1
     for (t in 2:n.occ){
-      z[i,t] ~ dcat(ps[z[i,t-1], t-1,]) # Actual state (alive/dead/not yet entered)
-      #state[i,t] <- ifelse(z[i,t]==2, 1, 2)
-      y[i,t] ~ dcat(cap.probs[z[i,t],t-1,])
+      z[i,t] ~ dcat(ps[z[i,t-1],i,t-1,]) # Actual state (alive/dead/not yet entered)
+      y[i,t] ~ dcat(cap.probs[z[i,t], t,])
     }
   }
+  for( t in 1:(n.occ-1)){
+    qgamma[t]<-1-gamma[t]
+    }
+  cprob[1]<-gamma[1]
+  for(t in 2:(n.occ-1)){
+   cprob[t]<-gamma[t]*prod(qgamma[1:(t-1)])
+  }
+  psi<-sum(cprob[])
+  for(t in 1:(n.occ-1)){
+    b[t]<-cprob[t]/psi
+  }
+  for(i in 1:M){
+    for(t in 2:n.occ){
+      al[i, t-1]<-equals(z[i,t], 2)
+    }
+    for(t in 1:(n.occ-1)){
+      d[i,t]<-equals(z[i,t]-al[i,t], 0)
+      }
+    alive[i]<-sum(al[i,])
+    }
+  for(t in 1:(n.occ-1)){
+    N[t]<-sum(al[,t])
+    B[t]<-sum(d[,t])
+    }
+  for(i in 1:M){
+    w[i]<-1-equals(alive[i], 0)
+    }
+Nsuper<-sum(w[])
 }
-    
-    
+

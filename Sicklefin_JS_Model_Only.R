@@ -11,7 +11,7 @@ if(length(new.packages)){install.packages(new.packages)}
 lapply(list.of.packages, require, character.only = TRUE)
 
 ###################################################
-## Operational years (occasion) for each gear type 
+## Operational years (occasion) for each gear type
 ## Seine: 2014-2016 (1-3)
 ## Fyke: 2016-2018 (3-5)
 ## PIT: 2017-2018 (4-5)
@@ -50,11 +50,11 @@ for(i in 1:nrow(CH.du)){
 z.known<-rbind(z.known, matrix(NA, ncol=dim(CH.du)[2], nrow=nz))
 
 
-# Calculating new and recaps 
+# Calculating new and recaps
 # get.first<-function(x) min(which(x>1))
 # f<-apply(ms.cap.hist, 1, get.first)
 # Recap<-NewCap<-rep(NA, 4) # recaps and new caps for 2015-2018
-# 
+#
 # for(n in 1:4){
 #   NewCap[n]<-length(f[f==(n+1)]) # number of newly captured individuals 2015-2018
 #   Recap[n]<-nrow(ms.cap.hist[!is.na(ms.cap.hist[,n+1])&ms.cap.hist[,n+1]>1&!is.na(ms.cap.hist[,n]),]) # number of recaptured individuals
@@ -62,8 +62,9 @@ z.known<-rbind(z.known, matrix(NA, ncol=dim(CH.du)[2], nrow=nz))
 
 # Effor data
 fykeEffort <- c(0, 0, 0, 2.5, 7, 4) # number of sampling days
-pitEffort <- c(0, 0, 0, 0, 1, 5.25) # ratio of number of sampling days from all antenna in 2017 and 2018, 66 and 347 respectively (Tried to use number of sampling days but model would not run)
- 
+##pitEffort <- c(0, 0, 0, 0, 1, 5.25) # ratio of number of sampling days from all antenna in 2017 and 2018, 66 and 347 respectively (Tried to use number of sampling days but model would not run)
+pitEffort <- c(0, 0, 0, 0, 66, 347)
+
 # Bundle data
 dat3<-list(y = ms.js.CH.aug, z=z.known, n.occ = dim(ms.js.CH.aug)[2], Sex=c(Sex, rep(1, nz/2), rep(2, nz/2)), M=dim(ms.js.CH.aug)[1], fykeEffort=fykeEffort, pitEffort=pitEffort)
 
@@ -79,14 +80,14 @@ js.multistate.init <- function(ch, nz){
   }
   state[state==0] <- NA
   get.first <- function(x) min(which(!is.na(x)))
-  get.last <- function(x) max(which(!is.na(x)))   
+  get.last <- function(x) max(which(!is.na(x)))
   f <- apply(state, 1, get.first)
   l <- apply(state, 1, get.last)
   for (i in 1:nrow(ch)){
     state[i,1:f[i]] <- 1
     if(l[i]!=ncol(ch)) state[i, (l[i]+1):ncol(ch)] <- 2
     state[i, f[i]] <- 2
-  }   
+  }
   state <- rbind(state, matrix(1, ncol = ncol(ch), nrow = nz))
   return(state)
 }
@@ -94,7 +95,7 @@ z.init<-js.multistate.init(CH.du, nz)
 z.init[z.known==2]<-NA
 
 
-inits <- function() {list(z=cbind(rep(NA, nrow(z.init)),z.init[,-1]), phi= runif(2, 0, 1), gamma=runif(5, 0, 1))}
+inits <- function() {list(z=cbind(rep(NA, nrow(z.init)),z.init[,-1]), phi= runif(2, 0, 1), gamma=runif(5, 0, 1), p0pit=runif(1, 0, 0.01))}
 
 # Parameters monitored
 params <- c("pFyke", "pSeine", "pPit", "phi", "gamma", "Nsuper", "N", "B", "psi")
@@ -107,7 +108,8 @@ nc <- 3
 
 
 
-sr.ms.js.jm1<-jags.model(data=dat3, inits = inits, file = "ms_js_phiSex_pGearEffort.jags",
+sr.ms.js.jm1<-jags.model(data=dat3, inits = inits,
+                         file = "ms_js_phiSex_pGearEffort.jags",
                          n.chains = nc, n.adapt = nb, quiet = F)
 
 sr.ms.js.jc1 <- coda.samples(sr.ms.js.jm1, params, n.iter=ni)
@@ -119,7 +121,10 @@ jc1.quants<-out.jc1$quantiles # 95% confidence intervals
 
 plot(sr.ms.js.jc1, ask=TRUE)
 
+sr.ms.js.jc2 <- coda.samples(sr.ms.js.jm1, params, n.iter=1000)
 
+
+plot(sr.ms.js.jc2, ask=TRUE)
 
 
 

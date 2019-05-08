@@ -10,12 +10,50 @@ new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"
 if(length(new.packages)){install.packages(new.packages)}
 lapply(list.of.packages, require, character.only = TRUE)
 
+#load("SRH_JS_phiSex_pGearEffort.gzip")
+
 ###################################################
 ## Operational years (occasion) for each gear type
 ## Seine: 2014-2016 (1-3)
 ## Fyke: 2016-2018 (3-5)
 ## PIT: 2017-2018 (4-5)
 ###################################################
+# Raw data
+raw.dat<-read.csv("Sicklefin_Capture_Data.csv")
+raw.dat<-raw.dat[raw.dat$Sex!="Unknown",] # remove rows where Sex is "Unknown"
+raw.dat$CollectDate<-strptime(raw.dat$CollectDate, format="%d-%b-%y") # convert date format
+raw.dat$CollectYear.1<-ifelse(is.na(raw.dat$CollectDate), raw.dat$CollectYear, year(raw.dat$CollectDate))
+
+# Tag type
+raw.dat$Tag_Type<-ifelse(raw.dat$PIT_Type=="FDX-B",0,1)
+tag.dat<-data.frame(with(raw.dat, table(raw.dat$Individual_ID, raw.dat$Tag_Type, raw.dat$CollectYear.1)))
+tag.dat<-tag.dat[tag.dat$Freq>0,]
+tag.dat<-spread(tag.dat, Var3, Var2)
+
+coalesce_by_column <- function(df) {
+  return(coalesce(df[1], df[2]))
+}
+
+tag.dat<-tag.dat%>%
+  group_by(Var1) %>%
+  summarise_all(coalesce_by_column)
+
+tag.dat<-data.frame(tag.dat[,3:7])
+
+get.first<-function(x){min(which(!is.na(x)))}
+f<-apply(tag.dat, 1, get.first)
+
+for(i in 1:nrow(tag.dat)){
+  for(j in (f[i]+1):ncol(tag.dat)){
+    tag.dat[i,j]<-ifelse(tag.dat[i,j-1]==0, 0, 1)
+    }
+}
+
+tag.dat<-as.matrix(tag.dat[,1:5])
+colnames(tag.dat)<-NULL
+tag.dat[is.na(tag.dat)]<-0
+tag.dat[6,5]<-1 #new PIT tag added to the individual that is detectable by antenna
+tag.dat<-tag.dat[-278,]
 
 # Read in capture history
 ms.cap.hist<-read.csv("Sicklefin Capture History.csv")
@@ -31,9 +69,12 @@ js.CH[is.na(js.CH)]<-1 # if NA, assign 1 for "not seen"
 CH.du<-as.matrix(cbind(rep(1, dim(js.CH)[1]), js.CH)) # add extra (dummy) sampling occ in the beginning (Kerry and Schaub 2012)
 colnames(CH.du)<-NULL
 head(CH.du)
-nz<-1000 # augmented individuals
+nz<-3000 # augmented individuals
 
 ms.js.CH.aug<-rbind(CH.du, matrix(1, ncol=dim(CH.du)[2], nrow=nz)) # data agumentation
+
+tag.dat.aug<-as.matrix(cbind(rep(0,dim(tag.dat)[1]), tag.dat))
+tag.dat.aug<-rbind(tag.dat.aug, matrix(0, ncol=dim(tag.dat.aug)[2], nrow=nz))
 
 # Jags data
 # Known z values
@@ -61,12 +102,15 @@ z.known<-rbind(z.known, matrix(NA, ncol=dim(CH.du)[2], nrow=nz))
 # }
 
 # Effor data
-fykeEffort <- c(0, 0, 0, 2.5, 7, 4) # number of sampling days
+effort<-read.csv("SRH_Effort_v2.csv", header=T)
+#fykeEffort <- tapply(effort$UB_FYKE, effort$Year, sum)
+fykeEffort<- c(0, 0, 0, 3, 5, 4) # number of sampling days
 ##pitEffort <- c(0, 0, 0, 0, 1, 5.25) # ratio of number of sampling days from all antenna in 2017 and 2018, 66 and 347 respectively (Tried to use number of sampling days but model would not run)
+#pitEffort <- aggregate(effort[,4:7], by=list(effort$Year), sum)
 pitEffort <- c(0, 0, 0, 0, 66, 347)
 
 # Bundle data
-dat3<-list(y = ms.js.CH.aug, z=z.known, n.occ = dim(ms.js.CH.aug)[2], Sex=c(Sex, rep(1, nz/2), rep(2, nz/2)), M=dim(ms.js.CH.aug)[1], fykeEffort=fykeEffort, pitEffort=pitEffort)
+dat3<-list(y = ms.js.CH.aug, z=z.known, n.occ = dim(ms.js.CH.aug)[2], Sex=c(Sex, rep(1, nz/2), rep(2, nz/2)), M=dim(ms.js.CH.aug)[1], fykeEffort=fykeEffort, pitEffort=pitEffort, tag.dat.aug=tag.dat.aug)
 
 # Initial values
 
@@ -101,9 +145,9 @@ inits <- function() {list(z=cbind(rep(NA, nrow(z.init)),z.init[,-1]), phi= runif
 params <- c("pFyke", "pSeine", "pPit", "phi", "gamma", "Nsuper", "N", "B", "psi")
 
 # MCMC settings
-ni <- 1000
+ni <- 100000
 nt <- 1
-nb <- 500
+nb <- 50000
 nc <- 3
 
 
@@ -121,11 +165,12 @@ jc1.quants<-out.jc1$quantiles # 95% confidence intervals
 
 plot(sr.ms.js.jc1, ask=TRUE)
 
-sr.ms.js.jc2 <- coda.samples(sr.ms.js.jm1, params, n.iter=1000)
+#save(sr.ms.js.jc1, file="SRH_JS_phiSex_pGearEffort.gzip")
+#save(sr.ms.js.jc1, file="SRH_JS_phiSex_pGearEffort_100000.gzip")
+pop.size<-data.frame(cbind(Year=c(2014:2018),pop.est=jc1.stats[6:10, 1], lower=jc1.quants[6:10, 1], upper=jc1.quants[6:10, 5]))
+pop.size.plot<-ggplot(pop.size, aes(Year, y=pop.est, ymin=lower, ymax=upper))
+pop.size.plot+geom_pointrange(size=1) + labs(y="Population Size")+theme(axis.text=element_text(size=20), axis.title=element_text(size=20, face="bold"))+ylim(0,3100)
 
-
-plot(sr.ms.js.jc2, ask=TRUE)
-
-
-
-
+recruits<-data.frame(cbind(Year=c(2015:2018),pop.est=jc1.stats[2:5, 1], lower=jc1.quants[2:5, 1], upper=jc1.quants[2:5, 5]))
+recruits.plot<-ggplot(recruits, aes(Year, y=pop.est, ymin=lower, ymax=upper))
+recruits.plot+geom_pointrange(size=1) + labs(y="Number of Recruits")+theme(axis.text=element_text(size=20), axis.title=element_text(size=20, face="bold"))+ylim(0,1000)

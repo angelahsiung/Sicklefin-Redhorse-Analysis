@@ -44,43 +44,45 @@ for(t in 1:(n.occ-1)){
   ps[3,i,t,2] <- 0 	# if dead, can't be come alive
   ps[3,i,t,3] <- 1 	# if dead, remain dead
   }
+ for(t in 1:n.occ){
+  # probabilities of O(t) given S(t)
+  cap.probs[1,i,t,1] <- 1 # Not yet entered, thus not detected
+  cap.probs[1,i,t,2] <- 0
+  cap.probs[1,i,t,3] <- 0
+  cap.probs[1,i,t,4] <- 0
+  cap.probs[1,i,t,5] <- 0
+  cap.probs[1,i,t,6] <- 0
+  cap.probs[1,i,t,7] <- 0
+  cap.probs[1,i,t,8] <- 0
+  cap.probs[2,i,t,1] <- (1-pSeine[t])*(1-pFyke[t])*(1-pPit[t]*tag.dat.aug[i,t]) # Pr(not detected|alive)
+  cap.probs[2,i,t,2] <- pSeine[t]*(1-pFyke[t])*(1-pPit[t]*tag.dat.aug[i,t]) # Pr(detected in seine, but not by other gear)
+  cap.probs[2,i,t,3] <- pFyke[t]*(1-pSeine[t])*(1-pPit[t]*tag.dat.aug[i,t]) # Pr(detected in fyke, but not by other gear)
+  cap.probs[2,i,t,4] <- pPit[t]*tag.dat.aug[i,t]*(1-pFyke[t])*(1-pSeine[t]) # Pr(detected by antenna, but not by other gear)
+  cap.probs[2,i,t,5] <- pFyke[t]*pPit[t]*tag.dat.aug[i,t]*(1-pSeine[t]) # Pr(detected by fyke and antenna)
+  cap.probs[2,i,t,6] <- pSeine[t]*pFyke[t]*(1-pPit[t]*tag.dat.aug[i,t]) # Pr(detected by seine and fyke)
+  cap.probs[2,i,t,7] <- pSeine[t]*pPit[t]*tag.dat.aug[i,t]*(1-pFyke[t]) # Pr(detected by seine and antenna)
+  cap.probs[2,i,t,8] <- pSeine[t]*pFyke[t]*pPit[t]*tag.dat.aug[i,t] # Pr(detected by all three gears)
+  cap.probs[3,i,t,1] <- 1 # If dead, can't be detected
+  cap.probs[3,i,t,2] <- 0
+  cap.probs[3,i,t,3] <- 0
+  cap.probs[3,i,t,4] <- 0
+  cap.probs[3,i,t,5] <- 0
+  cap.probs[3,i,t,6] <- 0
+  cap.probs[3,i,t,7] <- 0
+  cap.probs[3,i,t,8] <- 0
+}
 }
 
-# probabilities of O(t) given S(t)
-for(t in 1:n.occ){
-  cap.probs[1,t,1] <- 1 # Not yet entered, thus not detected
-  cap.probs[1,t,2] <- 0
-  cap.probs[1,t,3] <- 0
-  cap.probs[1,t,4] <- 0
-  cap.probs[1,t,5] <- 0
-  cap.probs[1,t,6] <- 0
-  cap.probs[1,t,7] <- 0
-  cap.probs[1,t,8] <- 0
-  cap.probs[2,t,1] <- (1-pSeine[t])*(1-pFyke[t])*(1-pPit[t]) # Pr(not detected|alive)
-  cap.probs[2,t,2] <- pSeine[t]*(1-pFyke[t])*(1-pPit[t]) # Pr(detected in seine, but not by other gear)
-  cap.probs[2,t,3] <- pFyke[t]*(1-pSeine[t])*(1-pPit[t]) # Pr(detected in fyke, but not by other gear)
-  cap.probs[2,t,4] <- pPit[t]*(1-pFyke[t])*(1-pSeine[t]) # Pr(detected by antenna, but not by other gear)
-  cap.probs[2,t,5] <- pFyke[t]*pPit[t]*(1-pSeine[t]) # Pr(detected by fyke and antenna)
-  cap.probs[2,t,6] <- pSeine[t]*pFyke[t]*(1-pPit[t]) # Pr(detected by seine and fyke)
-  cap.probs[2,t,7] <- pSeine[t]*pPit[t]*(1-pFyke[t]) # Pr(detected by seine and antenna)
-  cap.probs[2,t,8] <- pSeine[t]*pFyke[t]*pPit[t] # Pr(detected by all three gears)
-  cap.probs[3,t,1] <- 1 # If dead, can't be detected
-  cap.probs[3,t,2] <- 0
-  cap.probs[3,t,3] <- 0
-  cap.probs[3,t,4] <- 0
-  cap.probs[3,t,5] <- 0
-  cap.probs[3,t,6] <- 0
-  cap.probs[3,t,7] <- 0
-  cap.probs[3,t,8] <- 0
-}
+
     
   for (i in 1:M){
     z[i, 1] <- 1 # All individuals are in state 1 at t=1
     for (t in 2:n.occ){
       z[i,t] ~ dcat(ps[z[i,t-1],i,t-1,]) # Actual state (alive/dead/not yet entered)
-      y[i,t] ~ dcat(cap.probs[z[i,t], t,])
+      y[i,t] ~ dcat(cap.probs[z[i,t],i,t,])
     }
   }
+
   for( t in 1:(n.occ-1)){
     qgamma[t]<-1-gamma[t]
     }
@@ -97,7 +99,7 @@ for(t in 1:n.occ){
       al[i, t-1]<-equals(z[i,t], 2)
     }
     for(t in 1:(n.occ-1)){
-      d[i,t]<-equals(z[i,t]-al[i,t], 0)
+      d[i,t]<-equals(z[i,t]-al[i,t], 0) 
       }
     alive[i]<-sum(al[i,])
     }

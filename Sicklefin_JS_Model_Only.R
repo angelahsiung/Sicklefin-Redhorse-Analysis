@@ -148,7 +148,7 @@ params <- c("pFyke", "pSeine", "pPit", "mean.phi", "ER", "gamma", "Nsuper", "N",
 #codaOnly<-c("Nsuper", "N", "B", "psi")
 
 # MCMC settings
-ni <- 200
+ni <- 300
 nt <- 1
 nb <- 100
 nc <- 3
@@ -156,11 +156,11 @@ nc <- 3
 ## Run models
 
 #ER=200, nz=1000, nb=100, nt=1, ni=300
-sr.ms.js.jm10 <- jags.model(data=dat3, inits = inits,
-                            file = "ms_js_phiSex_gam0_pGearEffort.jags",
-                            n.chains = nc, n.adapt = nb, quiet = F)
-
-sr.ms.js.jc10 <- coda.samples(sr.ms.js.jm10, params, n.iter=ni)
+# sr.ms.js.jm10 <- jags.model(data=dat3, inits = inits,
+#                             file = "ms_js_phiSex_gam0_pGearEffort.jags",
+#                             n.chains = nc, n.adapt = nb, quiet = F)
+# 
+# sr.ms.js.jc10 <- coda.samples(sr.ms.js.jm10, params, n.iter=ni)
 
 # ER=400, nz=1000, nb=100, nt=1, ni=300
 ptm <- proc.time()
@@ -173,7 +173,7 @@ sr.ms.js.jc11 <- coda.samples(sr.ms.js.jm11, params, n.iter=ni)
 
 proc.time() - ptm
 
-save(sr.ms.js.jc11, file="SRH_phi0_gam0_pGearEffort_300.gzip")
+#save(sr.ms.js.jc11, file="SRH_phi0_gam0_pGearEffort_300.gzip")
 ## 3000 augmented individuals, 100000 iterations
 # sr.ms.js.jm1 <- jags.model(data=dat3, inits = inits,
 #                          file = "ms_js_phiSex_pGearEffort.jags",

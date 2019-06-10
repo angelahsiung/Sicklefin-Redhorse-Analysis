@@ -7,7 +7,7 @@ mean.phi ~ dunif(0,1)
 p0fyke ~ dunif(0,1)   # Capture prob in fyke when effort is 1
 p0pit ~ dunif(0,1)
 p0seine ~ dunif(0,1)
-ER ~ dunif(0, 400)
+ER ~ dunif(0, 200)
 for(t in 1:(n.occ-1)){
 #  gamma[t] ~ dunif(0,1) # entry probabilities
    gamma[t] <- ER/sum(a[,t]) ## E(recruits)/nAvailable to be recruited
@@ -67,11 +67,11 @@ for(i in 1:M){
     z[i, 1] <- 0 # All individuals are in state 0 at t=1
     a[i,1] <- 1
     for (t in 2:n.occ){
-      z[i,t] ~ dbern(z[i,t-1]*mean.phi+(1-z[i,t-1])*gamma[t]) # Actual state (1=alive, 0=dead or not yet entered)
+      z[i,t] ~ dbern(z[i,t-1]*mean.phi+a[i,t-1]*gamma[t-1]) # Actual state (1=alive, 0=dead or not yet entered)
       state[i,t]<-ifelse(z[i,t]<1, 1, 2)
       y[i,t] ~ dcat(cap.probs[state[i,t],i,t,])
-#      a[i,t] <- a[i,t-1]*equals(z[i,t], 1)
-      a[i,t] <- equals(z[i,t], 0)
+      a[i,t] <- a[i,t-1]*equals(z[i,t], 0)
+#      a[i,t] <- equals(z[i,t], 0)
     }
   }
 

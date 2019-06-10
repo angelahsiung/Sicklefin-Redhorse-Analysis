@@ -89,7 +89,8 @@ for(t in 1:(n.occ-1)){
     for (t in 2:n.occ){
       z[i,t] ~ dcat(ps[z[i,t-1],i,t-1,]) # Actual state (alive/dead/not yet entered)
       y[i,t] ~ dcat(cap.probs[z[i,t],i,t,])
-      a[i,t] <- a[i,t-1]*equals(z[i,t], 1)
+#      a[i,t] <- a[i,t-1]*equals(z[i,t], 1)
+      a[i,t] <- equals(z[i,t], 1)
     }
   }
 

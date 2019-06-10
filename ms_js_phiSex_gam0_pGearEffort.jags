@@ -1,0 +1,126 @@
+model{
+## Priors
+#alpha ~ dnorm(0, 0.37)
+#beta ~ dnorm(0, 0.37)
+mean.phi ~ dunif(0,1)
+
+p0fyke ~ dunif(0,1)   # Capture prob in fyke when effort is 1
+p0pit ~ dunif(0,1)
+p0seine ~ dunif(0,1)
+ER ~ dunif(0, 400)
+for(t in 1:(n.occ-1)){
+#  gamma[t] ~ dunif(0,1) # entry probabilities
+   gamma[t] <- ER/sum(a[,t]) ## E(recruits)/nAvailable to be recruited
+}
+
+#for(i in 1:M){
+#Sex[i]~dbern(0.5) # female is 0, male is 1
+#logit(phi[i])<-alpha+Sex[i]*beta
+#}
+
+
+# We don't have much effort info for seine
+# Apparently no seining happened in years 4 and 5
+pSeine[1] <- 0  # dummy occasion
+pSeine[2] <- p0seine #dunif(0,1)
+pSeine[3] <- p0seine #dunif(0,1)
+pSeine[4] <- p0seine
+pSeine[5] <- 0
+pSeine[6]<-0
+
+pFyke[1]<-0 # dummy occasion
+pPit[1]<-0  # dummy occasion
+
+  # Effective capture probability in fyke net in year t
+  # fykeEffort should be the number of days of effort in each year
+  for(t in 2:n.occ){
+  pFyke[t] <-  1-(1-p0fyke)^fykeEffort[t]
+  # pitEffort is ratio of number of sampling days across all antenna
+  pPit[t]  <- 1-(1-p0pit)^pitEffort[t]
+  }
+
+# probabilities of state S(t+1) given S(t)
+for(i in 1:M){
+for(t in 1:(n.occ-1)){
+
+  ps[1,i,t,1] <- 1-gamma[t]	# Pr(not being recruited)
+  ps[1,i,t,2] <- gamma[t] 	# Pr(not yet entered to alive)
+  ps[1,i,t,3] <- 0 	# can't go from not yet entered to dead
+  ps[2,i,t,1] <- 0 	# can't go from alive to not yet alive
+  ps[2,i,t,2] <- mean.phi	# constant survival prob 
+  ps[2,i,t,3] <- 1-mean.phi	# Pr(not surviving til next period)
+  ps[3,i,t,1] <- 0 	# if dead, can't become not yet entered
+  ps[3,i,t,2] <- 0 	# if dead, can't be come alive
+  ps[3,i,t,3] <- 1 	# if dead, remain dead
+  }
+ for(t in 1:n.occ){
+  # probabilities of O(t) given S(t)
+  cap.probs[1,i,t,1] <- 1 # Not yet entered, thus not detected
+  cap.probs[1,i,t,2] <- 0
+  cap.probs[1,i,t,3] <- 0
+  cap.probs[1,i,t,4] <- 0
+  cap.probs[1,i,t,5] <- 0
+  cap.probs[1,i,t,6] <- 0
+  cap.probs[1,i,t,7] <- 0
+  cap.probs[1,i,t,8] <- 0
+  cap.probs[2,i,t,1] <- (1-pSeine[t])*(1-pFyke[t])*(1-pPit[t]*tag.dat.aug[i,t]) # Pr(not detected|alive)
+  cap.probs[2,i,t,2] <- pSeine[t]*(1-pFyke[t])*(1-pPit[t]*tag.dat.aug[i,t]) # Pr(detected in seine, but not by other gear)
+  cap.probs[2,i,t,3] <- pFyke[t]*(1-pSeine[t])*(1-pPit[t]*tag.dat.aug[i,t]) # Pr(detected in fyke, but not by other gear)
+  cap.probs[2,i,t,4] <- pPit[t]*tag.dat.aug[i,t]*(1-pFyke[t])*(1-pSeine[t]) # Pr(detected by antenna, but not by other gear)
+  cap.probs[2,i,t,5] <- pFyke[t]*pPit[t]*tag.dat.aug[i,t]*(1-pSeine[t]) # Pr(detected by fyke and antenna)
+  cap.probs[2,i,t,6] <- pSeine[t]*pFyke[t]*(1-pPit[t]*tag.dat.aug[i,t]) # Pr(detected by seine and fyke)
+  cap.probs[2,i,t,7] <- pSeine[t]*pPit[t]*tag.dat.aug[i,t]*(1-pFyke[t]) # Pr(detected by seine and antenna)
+  cap.probs[2,i,t,8] <- pSeine[t]*pFyke[t]*pPit[t]*tag.dat.aug[i,t] # Pr(detected by all three gears)
+  cap.probs[3,i,t,1] <- 1 # If dead, can't be detected
+  cap.probs[3,i,t,2] <- 0
+  cap.probs[3,i,t,3] <- 0
+  cap.probs[3,i,t,4] <- 0
+  cap.probs[3,i,t,5] <- 0
+  cap.probs[3,i,t,6] <- 0
+  cap.probs[3,i,t,7] <- 0
+  cap.probs[3,i,t,8] <- 0
+}
+}
+
+
+    
+  for (i in 1:M){
+    z[i, 1] <- 1 # All individuals are in state 1 at t=1
+    a[i,1] <- 1
+    for (t in 2:n.occ){
+      z[i,t] ~ dcat(ps[z[i,t-1],i,t-1,]) # Actual state (alive/dead/not yet entered)
+      y[i,t] ~ dcat(cap.probs[z[i,t],i,t,])
+      a[i,t] <- a[i,t-1]*equals(z[i,t], 1)
+    }
+  }
+
+  for( t in 1:(n.occ-1)){
+    qgamma[t]<-1-gamma[t]
+    }
+  cprob[1]<-gamma[1]
+  for(t in 2:(n.occ-1)){
+   cprob[t]<-gamma[t]*prod(qgamma[1:(t-1)])
+  }
+  psi<-sum(cprob[])
+#  for(t in 1:(n.occ-1)){
+#    b[t]<-cprob[t]/psi
+#  }
+  for(i in 1:M){
+    for(t in 2:n.occ){
+      al[i, t-1]<-equals(z[i,t], 2)
+    }
+    for(t in 1:(n.occ-1)){
+      d[i,t]<-equals(z[i,t]-al[i,t], 0) 
+      }
+    alive[i]<-sum(al[i,])
+    }
+  for(t in 1:(n.occ-1)){
+    N[t]<-sum(al[,t])
+    B[t]<-sum(d[,t])
+    }
+  for(i in 1:M){
+    w[i]<-1-equals(alive[i], 0)
+    }
+Nsuper<-sum(w[])
+}
+

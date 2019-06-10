@@ -144,11 +144,11 @@ z.init[z.known==2]<-NA
 inits <- function() {list(z=cbind(rep(NA, nrow(z.init)),z.init[,-1]), mean.phi=runif(1, 0, 1), p0seine=runif(1, 0, 1), p0fyke=runif(1, 0, 1), p0pit=runif(1, 0, 0.01), ER=runif(1, 0, 1))} #Sex=c(rep(NA,length(Sex)), rbinom(nz ,1, 0.5)),
 
 # Parameters monitored
-params <- c("pFyke", "pSeine", "pPit", "mean.phi", "ER", "gamma", "Nsuper", "N", "B", "psi") #, "alpha", "beta") 
+params <- c("pFyke", "pSeine", "pPit", "mean.phi", "ER", "gamma", "Nsuper", "N", "psi") #, "alpha", "beta") 
 #codaOnly<-c("Nsuper", "N", "B", "psi")
 
 # MCMC settings
-ni <- 3000
+ni <- 200
 nt <- 1
 nb <- 100
 nc <- 3
@@ -162,17 +162,18 @@ sr.ms.js.jm10 <- jags.model(data=dat3, inits = inits,
 
 sr.ms.js.jc10 <- coda.samples(sr.ms.js.jm10, params, n.iter=ni)
 
-# ER=400, nz=1000, nb=100, nt=1, ni=3000
+# ER=400, nz=1000, nb=100, nt=1, ni=300
 ptm <- proc.time()
 
 sr.ms.js.jm11 <- jags.model(data=dat3, inits = inits,
-                            file = "ms_js_phiSex_gam0_pGearEffort.jags",
+                            file = "ms_js_phi0_gam0_pGearEffort.jags",
                             n.chains = nc, n.adapt = nb, quiet = F)
 
 sr.ms.js.jc11 <- coda.samples(sr.ms.js.jm11, params, n.iter=ni)
 
 proc.time() - ptm
 
+save(sr.ms.js.jc11, file="SRH_phi0_gam0_pGearEffort_300.gzip")
 ## 3000 augmented individuals, 100000 iterations
 # sr.ms.js.jm1 <- jags.model(data=dat3, inits = inits,
 #                          file = "ms_js_phiSex_pGearEffort.jags",

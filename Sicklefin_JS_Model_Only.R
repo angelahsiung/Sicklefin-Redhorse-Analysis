@@ -180,25 +180,25 @@ nc <- 1
 # 
 # sr.ms.js.jc12 <- coda.samples(sr.ms.js.jm12, params, n.iter=ni)
 
-# ER=500, nz=1700, nb=100, nt=1, ni=3000, nc=1
-
-# sr.ms.js.jm13 <- jags.model(data=dat3, inits = inits,
-#                             file = "srh_js_phi0_gam0_pGearEffort.jags",
-#                             n.chains = nc, n.adapt = nb, quiet = F)
+# ER=500, nz=1800, nb=100, nt=1, ni=500, nc=1
+ptm <- proc.time()
+sr.ms.js.jm13 <- jags.model(data=dat3, inits = inits,
+                            file = "srh_js_phi0_gam0_pGearEffort.jags",
+                            n.chains = nc, n.adapt = nb, quiet = F)
 
 sr.ms.js.jc13 <- coda.samples(sr.ms.js.jm13, params, n.iter=ni)
 
-
-# ER=500, nz=1800, nb=100, nt=1, ni=1000, nc=2
-ptm <- proc.time()
-
-sr.ms.js.jm14 <- autojags(dat3, inits, params, 
-                          model.file = "srh_js_phi0_gam0_pGearEffort.jags",
-                          n.chains = nc, n.adapt = 200, iter.increment=100, 
-                          n.burnin=nb,n.thin=nt,
-                          parallel=TRUE,n.cores=2,Rhat.limit=1.1, max.iter=ni, verbose=TRUE)
-
 proc.time() - ptm
+# ER=500, nz=1800, nb=100, nt=1, ni=1000, nc=2
+# ptm <- proc.time()
+# 
+# sr.ms.js.jm14 <- autojags(dat3, inits, params, 
+#                           model.file = "srh_js_phi0_gam0_pGearEffort.jags",
+#                           n.chains = nc, n.adapt = 200, iter.increment=100, 
+#                           n.burnin=nb,n.thin=nt,
+#                           parallel=TRUE,n.cores=2,Rhat.limit=1.1, max.iter=ni, verbose=TRUE)
+# 
+# proc.time() - ptm
 
 
 

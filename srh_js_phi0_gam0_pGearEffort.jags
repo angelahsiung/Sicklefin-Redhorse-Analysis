@@ -7,7 +7,7 @@ mean.phi ~ dunif(0,1)
 p0fyke ~ dunif(0,1)   # Capture prob in fyke when effort is 1
 p0pit ~ dunif(0,1)
 p0seine ~ dunif(0,1)
-ER ~ dunif(0, 200)
+ER ~ dunif(0, 500)
 for(t in 1:(n.occ-1)){
 #  gamma[t] ~ dunif(0,1) # entry probabilities
    gamma[t] <- ER/sum(a[,t]) ## E(recruits)/nAvailable to be recruited
@@ -86,23 +86,26 @@ for(i in 1:M){
 #  for(t in 1:(n.occ-1)){
 #    b[t]<-cprob[t]/psi
 #  }
-  for(i in 1:M){
+
     for(t in 2:n.occ){
-      al[i, t-1]<-equals(z[i,t], 1)
+#      al[i, t-1]<-equals(z[i,t], 1)
+       N[t]<-sum(z[,t])
     }
+    
+  for(i in 1:M){
 #    for(t in 1:(n.occ-1)){
 #      d[i,t]<-equals(z[i,t]-al[i,t], 0) 
 #      }
-    alive[i]<-sum(al[i,])
+#    alive[i]<-sum(al[i,])
+   alive[i]<-sum(z[i,])
+   w[i]<-1-equals(alive[i], 0)
     }
 
-  for(t in 1:(n.occ-1)){
-    N[t]<-sum(al[,t])
+#  for(t in 1:(n.occ-1)){
+#    N[t]<-sum(al[,t])
 #     B[t]<-sum(d[,t])
-    }
-  for(i in 1:M){
-    w[i]<-1-equals(alive[i], 0)
-    }
+#    }
+
 Nsuper<-sum(w[])
 }
 

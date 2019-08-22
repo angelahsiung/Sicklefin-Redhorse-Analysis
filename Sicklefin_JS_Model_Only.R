@@ -10,7 +10,7 @@ new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"
 if(length(new.packages)){install.packages(new.packages)}
 lapply(list.of.packages, require, character.only = TRUE)
 
-
+#load("SRH_js_phi0_gamTime-pGearEffort_100000.gzip")
 
 ###################################################
 ## Operational years (occasion) for each gear type
@@ -31,8 +31,12 @@ raw.dat$CollectYear.1<-ifelse(is.na(raw.dat$CollectDate), raw.dat$CollectYear, y
 # Convert tag type
 raw.dat$Tag_Type<-ifelse(raw.dat$PIT_Type=="FDX-B",0,1) # if fish was tagged wtih FDX-B, cannot be detected by PIT antenna. If tagged with HDX tag, can be detected by antenna
 
+
+#Pulling out Brasstown data
+brasstown<-raw.dat[raw.dat$Waterbody=="Brasstown Creek",]
+
 # Create table with individual and tag detectability over time ("0" for FDX-B tags, "1" for HDX tags)
-tag.dat<-data.frame(with(raw.dat, table(raw.dat$Individual_ID, raw.dat$Tag_Type, raw.dat$CollectYear.1)))
+tag.dat<-data.frame(with(brasstown, table(brasstown$Individual_ID, brasstown$Tag_Type, brasstown$CollectYear.1)))
 tag.dat<-tag.dat[tag.dat$Freq>0,]
 tag.dat<-spread(tag.dat, Var3, Var2)
 
@@ -60,32 +64,74 @@ for(i in 1:nrow(tag.dat)){
 tag.dat<-tag.dat[,1:5]
 colnames(tag.dat)<-NULL
 tag.dat[is.na(tag.dat)]<-0
-tag.dat[6,5]<-1 #new HDX tag added to this individual in 2018
-tag.dat<-tag.dat[-278,] #remove fish that was supposedly captured by seine in Valley River
+tag.dat[6,5:ncol(tag.dat)]<-1 #new HDX tag added to this individual in 2018
 tag.dat <- apply(tag.dat, 2, as.numeric)
 
 ##### Preparing data for model
+# organize data into pivot table
+ms.dat<-dcast(brasstown, brasstown$Individual_ID+brasstown$CollectYear.1~brasstown$PriMethod)
+ms.dat<-ms.dat[rowSums(ms.dat[,3:5])>0,] # keep rows where individual was captured at least once
 
-# capture history
-ms.cap.hist<-read.csv("Sicklefin Capture History.csv")
-ms.cap.hist<-ms.cap.hist[-278,] #remove fish that was supposedly captured by seine in Valley River
+for(i in 1:nrow(ms.dat)){
+  for(j in 3:ncol(ms.dat)){
+    if(ms.dat[i,j]>1){
+      ms.dat[i,j]<-1
+    }
+  }
+} # transform capture records into 1s and 0s
 
-# prepare data for model
-Sex<-ifelse(ms.cap.hist$Sex==1, 0, 1) #0 is female, 1 is male
+# Turn capture record into gear used to capture individual (e.g. if caught by PIT array, denoted as "P")
+ms.dat$`PIT Array`<-ifelse(ms.dat$`PIT Array`==1, "P", 0)
+ms.dat$`Seining`<-ifelse(ms.dat$`Seining`==1, "S", 0)
+ms.dat$`Trapping (Weir or Fyke)`<-ifelse(ms.dat$`Trapping (Weir or Fyke)`==1, "T", 0)
 
-js.CH<-ms.cap.hist
-js.CH$Sex<-NULL
+# Assign simpler column names
+colnames(ms.dat)<-c("ID", "Year", "PIT", "Sein", "Trap")
 
-# Convert CJS capture history to data for JS model
-js.CH[is.na(js.CH)]<-1 # if NA, assign 1 for "not seen"
+# Using paste function to denote "state" of captured individual based on gear(s) with which it was captured
+for(i in 1:nrow(ms.dat)){
+  for(j in 1:ncol(ms.dat)){
+    ms.dat[i,j]<-ifelse(ms.dat[i,j]==0, '', ms.dat[i,j])
+  }
+  ms.dat$state[i]<-paste(ms.dat[i,3:5], collapse='')
+}
 
-CH.du<-as.matrix(cbind(rep(1, dim(js.CH)[1]), js.CH)) # add extra (dummy) sampling occ in the beginning (Kerry and Schaub 2012)
+# Turn table into wide shape
+ms.dat<-ms.dat%>%
+  spread(Year, state)
+
+# extract capture history from table
+ms.cap.hist<-ms.dat[,c(1,5:9)]
+
+# combine multiple rows of the same individual
+coalesce_by_column <- function(df) {
+  return(coalesce(df[1], df[2]))
+}
+
+ms.cap.hist<-ms.cap.hist%>%
+  group_by(ID) %>%
+  summarise_all(coalesce_by_column)
+
+for (i in 1:nrow(ms.cap.hist)){
+  for (j in f[i]:ncol(ms.cap.hist)){
+    ms.cap.hist[i,j]<-ifelse(is.na(ms.cap.hist[i,j]), 1, ifelse(ms.cap.hist[i,j]=="S", 2, ifelse(ms.cap.hist[i,j]=="T", 3, ifelse(ms.cap.hist[i,j]=="P", 4,ifelse(ms.cap.hist[i,j]=="PT", 5, ifelse(ms.cap.hist[i,j]=="ST", 6, ms.cap.hist[i,j]))))))
+  }
+}
+
+brasstown.CH<-ms.cap.hist[,-1]
+apply(brasstown.CH, 2, as.numeric)
+brasstown.CH<-as.matrix(brasstown.CH)
+
+# Convert CJS capture history to CH for JS model
+brasstown.CH[is.na(brasstown.CH)]<-1 # if NA, assign 1 for "not seen"
+
+CH.du<-as.matrix(cbind(rep(1, dim(brasstown.CH)[1]), brasstown.CH)) # add extra (dummy) sampling occ in the beginning (Kerry and Schaub 2012)
 colnames(CH.du)<-NULL
 head(CH.du)
-nz<-2200 # augmented individuals
+nz<-1500# augmented individuals
 
 # augmenting individuals to original capture history
-ms.js.CH.aug<-rbind(CH.du, matrix(1, ncol=dim(CH.du)[2], nrow=nz)) 
+brasstown.CH.aug<-rbind(CH.du, matrix(1, ncol=dim(CH.du)[2], nrow=nz)) 
 
 #augment PIT tag data
 tag.dat.aug<-as.matrix(cbind(rep(0,dim(tag.dat)[1]), tag.dat)) 
@@ -106,14 +152,14 @@ z.known<-rbind(z.known, matrix(NA, ncol=dim(CH.du)[2], nrow=nz))
 
 
 # Effor data
-#effort<-read.csv("SRH_Effort_v2.csv", header=T)
-#fykeEffort <- tapply(effort$UB_FYKE, effort$Year, sum)
+effort<-read.csv("SRH_Effort_v2.csv", header=T)
+fykeEffort <- tapply(effort$UB_FYKE, effort$Year, sum)
 fykeEffort<- c(0, 0, 0, 3, 5, 4) # number of sampling days
-#pitEffort <- aggregate(effort[,4:7], by=list(effort$Year), sum)
-pitEffort <- c(0, 0, 0, 0, 66, 347)
+pitEffort <- aggregate(effort[,4:5], by=list(effort$Year), sum)
+pitEffort <- c(0, 0, 0, 0, 66, 186)
 
 # Bundle data
-dat3<-list(y = ms.js.CH.aug, n.occ = dim(ms.js.CH.aug)[2], M=dim(ms.js.CH.aug)[1], fykeEffort=fykeEffort, pitEffort=pitEffort, tag.dat.aug=as.matrix(tag.dat.aug)) #Sex=c(Sex, rep(NA, nz))
+dat3<-list(y = brasstown.CH.aug, n.occ = dim(brasstown.CH.aug)[2], M=dim(brasstown.CH.aug)[1], fykeEffort=fykeEffort, pitEffort=pitEffort, tag.dat.aug=as.matrix(tag.dat.aug)) #Sex=c(Sex, rep(NA, nz))
 
 # Initial values
 
@@ -142,48 +188,27 @@ z.init<-js.multistate.init(CH.du, nz)
 
 
 
-inits <- function() {list(z=cbind(rep(NA, nrow(z.init)),z.init[,-1]), mean.phi=runif(1, 0, 1), p0seine=runif(1, 0, 1), p0fyke=runif(1, 0, 1), p0pit=runif(1, 0, 0.01), gamma=runif(5, 0, 1))} #ER=runif(1, 0, 1))} #Sex=c(rep(NA,length(Sex)), rbinom(nz ,1, 0.5)),
+inits <- function() {list(z=cbind(rep(NA, nrow(z.init)),z.init[,-1]), mean.phi=runif(1, 0, 1)
+                          ,p0seine=runif(1, 0, 1), p0fyke=runif(1, 0, 1), p0pit=runif(1, 0, 0.01) 
+                          #,gamma=runif(5, 0, 1) 
+                          ,ER=runif(1, 0, 1))}
 
 # Parameters monitored
-params <- c("pFyke", "pSeine", "pPit", "mean.phi", "B", "gamma", "Nsuper", "N", "psi") #, "alpha", "beta") 
+params <- c("pFyke", "pSeine", "pPit", "mean.phi", "ER", "Nsuper", "N", "psi") 
 #codaOnly<-c("Nsuper", "N", "B", "psi")
 
 # MCMC settings
-ni <- 1000
+ni <- 300
 nt <- 1
-nb <- 500
-nc <- 3
+nb <- 100
+nc <- 1
 
 ## Run models
-
-#ER=200, nz=1000, nb=100, nt=1, ni=300
-# sr.ms.js.jm10 <- jags.model(data=dat3, inits = inits,
-#                             file = "ms_js_phiSex_gam0_pGearEffort.jags",
-#                             n.chains = nc, n.adapt = nb, quiet = F)
-# 
-# sr.ms.js.jc10 <- coda.samples(sr.ms.js.jm10, params, n.iter=ni)
-
-# ER=200, nz=1000, nb=100, nt=1, ni=300
-# 
-# sr.ms.js.jm11 <- jags.model(data=dat3, inits = inits,
-#                             file = "srh_js_phi0_gam0_pGearEffort.jags",
-#                             n.chains = nc, n.adapt = nb, quiet = F)
-# 
-# sr.ms.js.jc11 <- coda.samples(sr.ms.js.jm11, params, n.iter=ni)
-
-
-# ER=500, nz=1100, nb=100, nt=1, ni=1000
-
-# sr.ms.js.jm12 <- jags.model(data=dat3, inits = inits,
-#                             file = "srh_js_phi0_gam0_pGearEffort.jags",
-#                             n.chains = nc, n.adapt = nb, quiet = F)
-# 
-# sr.ms.js.jc12 <- coda.samples(sr.ms.js.jm12, params, n.iter=ni)
 
 # ER=500, nz=1800, nb=100, nt=1, ni=500, nc=1
 ptm <- proc.time()
 sr.ms.js.jm13 <- jags.model(data=dat3, inits = inits,
-                            file = "srh_js_phi0_gamTime_pGearEffort.jags",
+                            file = "srh_js_phi0_gam0_pGearEffort.jags",
                             n.chains = nc, n.adapt = nb, quiet = F)
 
 sr.ms.js.jc13 <- coda.samples(sr.ms.js.jm13, params, n.iter=ni)
@@ -209,94 +234,9 @@ out.jc13<-summary(sr.ms.js.jc13)
 stats.jc13<-out.jc13$statistics
 quants.jc13<-out.jc13$quantiles
 
-save(sr.ms.js.jc13, file="SRH_js_phi0_gamTime_pGearEffort_100000.gzip")
+#save(sr.ms.js.jc13, file="SRH_js_phi0_gamTime_pGearEffort_100000.gzip")
 
 # plotting results
-
-
-# load("SRH_js_phi0_gam0_pGearEffort_7000.gzip")
-# plot(sr.ms.js.jc13, ask=TRUE)
-# 
-# out.1<-sr.ms.js.jc13[[1]]
-# out.2<-sr.ms.js.jc13[[1]]
-# out.3<-sr.ms.js.jc13[[1]]
-# out.4<-sr.ms.js.jc13[[1]]
-# out.5<-sr.ms.js.jc13[[1]]
-# out.6<-sr.ms.js.jc13[[1]]
-# out.all<-rbind(out.1,out.2,out.3,out.4,out.5, out.6)
-# 
-# hist(out.all[,24], breaks=seq(0,1,0.01))
-# plot(out.all[,6],type="l")
-# mean<-quants2.5<-quants97.5<-rep(NA,ncol(out.all))
-# 
-# for(i in 1:ncol(out.all)){
-#   mean[i]<-mean(out.all[,i])
-#   quants2.5[i]<-quantile(out.all[,i],probs=0.025)
-#   quants97.5[i]<-quantile(out.all[,i],probs=0.975)
-# }
-# 
-# estimates<-data.frame(cbind(Param=colnames(out.all), Mean=mean, Lower=quants2.5, Upper=quants97.5))
-# estimates$Mean<-as.numeric(as.character(estimates$Mean))
-# estimates$Lower<-as.numeric(as.character(estimates$Lower))
-# estimates$Upper<-as.numeric(as.character(estimates$Upper))
-# 
-# pop.size<-cbind(Year=c(2015:2018),estimates[3:6,])
-# pop.size.plot<-ggplot(pop.size, aes(Year, y=Mean, ymin=Lower, ymax=Upper))
-# pop.size.plot+ coord_cartesian(ylim = c(0, 1500))+ geom_pointrange(size=1) + labs(y="Population Size")+theme(plot.margin=margin(.75,.75,.75,.75,"cm"), axis.text=element_text(size=20), axis.title=element_text(size=25, face="bold"), axis.title.y=element_text(margin=margin(t=0, r=20, b=0, l=0)))
-# 
-# est.rec<-cbind(Recruits="Recruits", estimates[1,])
-# est.rec.plot<-ggplot(est.rec, aes(Recruits, y=Mean, ymin=Lower, ymax=Upper))
-# est.rec.plot+coord_cartesian(ylim = c(0, 450)) + geom_pointrange(size=1.25) + labs(y="Expected Annual Recruits")+theme(plot.margin=margin(.75,.75,.75,.75,"cm"), axis.text=element_text(size=20), axis.title.y=element_text(margin=margin(t=0, r=20, b=0, l=0), size=25, face="bold"), axis.title.x=element_blank(), axis.text.x=element_blank())+scale_y_continuous(expand = c(0, 0))
-# 
-# 
-# est.surv<-cbind(Survival="Survival", estimates[13,])
-# 
-# est.surv.plot<-ggplot(est.surv, aes(Survival, y=Mean, ymin=Lower, ymax=Upper))
-# est.surv.plot+geom_pointrange(size=1.15) + coord_cartesian(ylim = c(0, 1)) + labs(y="Estimated Annual Survival")+theme(plot.margin=margin(.75,.75,.75,.75,"cm"), axis.text=element_text(size=20), axis.title.y=element_text(margin=margin(t=0, r=20, b=0, l=0), size=25, face="bold"), axis.title.x=element_blank(), axis.text.x=element_blank())+scale_y_continuous(expand = c(0, 0))
-# 
-# 
-# det.prob<-estimates[c(16:19, 22:25,28:31),]
-# 
-# for(i in 1:nrow(det.prob)){
-#   for(j in 2:ncol(det.prob)){
-#     det.prob[i,j]<-ifelse(det.prob[i,j]==0, NA, det.prob[i,j])
-#   }
-# }
-# det.prob<-det.prob[,2:4]
-# 
-# det.prob<-cbind(det.prob, Gear=c(rep("Fyke",4), rep("Antenna", 4), rep("Seine", 4)), Year=c(rep(2015:2018, 3)))
-# 
-# det.prob.plot<-ggplot(det.prob, aes(y=Mean, x=Year, group=Gear, ymin=Lower, ymax=Upper))
-# 
-# det.prob.plot+ geom_pointrange(aes(colour=Gear), position=position_dodge(width=c(0.2, 0)), size = 1, alpha = 0.7)+
-#   labs(y="Detection Probability")+
-#   theme(plot.margin=margin(.75,.75,.75,.75,"cm"), axis.text=element_text(size=20), axis.title=element_text(size=25, face="bold"), axis.title.y=element_text(margin=margin(t=0, r=20, b=0, l=0)), legend.title=element_text(size=16),legend.text=element_text(size=15))+ 
-#   expand_limits(y=c(0,1))+
-#   scale_y_continuous(expand = c(0, 0))
-# 
-# 
-
-
-## 3000 augmented individuals, 100000 iterations
-# sr.ms.js.jm1 <- jags.model(data=dat3, inits = inits,
-#                          file = "ms_js_phiSex_pGearEffort.jags",
-#                          n.chains = nc, n.adapt = 100, quiet = F)
-# 
-# sr.ms.js.jc1 <- coda.samples(sr.ms.js.jm1, params, n.iter=300)
-
-## 3500 augmented individuals, 50000 iterations
-# sr.ms.js.jm2 <- jags.model(data=dat3, inits = inits,
-#                            file = "ms_js_phiSex_pGearEffort.jags",
-#                            n.chains = nc, n.adapt = nb, quiet = F)
-# 
-# sr.ms.js.jc2 <- coda.samples(sr.ms.js.jm2, params, n.iter=ni)
-
-## 4000 augmented individuals, 50000 iterations
-# sr.ms.js.jm3<-jags.model(data=dat3, inits = inits,
-#                          file = "ms_js_phiSex_pGearEffort.jags",
-#                          n.chains = nc, n.adapt = nb, quiet = F)
-# sr.ms.js.jc3 <- coda.samples(sr.ms.js.jm3, params, n.iter=ni)
-
 
 
 

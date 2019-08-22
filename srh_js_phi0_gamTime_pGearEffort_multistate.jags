@@ -2,17 +2,13 @@ model{
 ## Priors
 
 mean.phi ~ dunif(0,1)
-
 p0fyke ~ dunif(0,1)   # Capture prob in fyke when effort is 1
 p0pit ~ dunif(0,1)
 p0seine ~ dunif(0,1)
 
-ER ~ dunif(0, 500) # expected number of recruits per year
-for(t in 1:(n.occ-1)){
-#  gamma[t] ~ dunif(0,1) # entry probabilities
-   gamma[t] <- ER/sum(a[,t]) ## E(recruits)/nAvailable to be recruited
+for(t in 1:(n.occ-1)){    
+  gamma[t] ~ dunif(0,1) # entry probabilities
 }
-
 
 # We don't have much effort info for seine
 # Apparently no seining happened in years 4 and 5
@@ -30,12 +26,32 @@ pPit[1]<-0  # dummy occasion
   # fykeEffort should be the number of days of effort in each year
   for(t in 2:n.occ){
   pFyke[t] <-  1-(1-p0fyke)^fykeEffort[t]
-  # pitEffort is ratio of number of sampling days across all antenna
+  #pitEffort is number of days operational across all antennae
   pPit[t]  <- 1-(1-p0pit)^pitEffort[t]
   }
+#-------------------------------------
+#States:
+#1 not yet entered
+#2 alive
+#3 dead
+#Observations
+#1 not seen
+#2-8 Seen
+#-------------------------------------
 
 # probabilities of state S(t+1) given S(t)
 for(i in 1:M){
+ for(t in 1:(n.occ-1)){
+  ps[1,i,t,1]<-1-gamma[t]
+  ps[1,i,t,2]<-gamma[t]
+  ps[1,i,t,3]<-0
+  ps[2,i,t,1]<-0
+  ps[2,i,t,2]<-mean.phi
+  ps[2,i,t,3]<-1-mean.phi
+  ps[3,i,t,1]<-0
+  ps[3,i,t,2]<-0
+  ps[3,i,t,3]<-1
+ }
  for(t in 1:n.occ){
   # probabilities of O(t) given S(t)
   cap.probs[1,i,t,1] <- 1 # Not yet entered, thus not detected
@@ -54,17 +70,21 @@ for(i in 1:M){
   cap.probs[2,i,t,6] <- pSeine[t]*pFyke[t]*(1-pPit[t]*tag.dat.aug[i,t]) # Pr(detected by seine and fyke)
   cap.probs[2,i,t,7] <- pSeine[t]*pPit[t]*tag.dat.aug[i,t]*(1-pFyke[t]) # Pr(detected by seine and antenna)
   cap.probs[2,i,t,8] <- pSeine[t]*pFyke[t]*pPit[t]*tag.dat.aug[i,t] # Pr(detected by all three gears)
+  cap.probs[3,i,t,1] <- 1 # Dead, thus not detected
+  cap.probs[3,i,t,2] <- 0
+  cap.probs[3,i,t,3] <- 0
+  cap.probs[3,i,t,4] <- 0
+  cap.probs[3,i,t,5] <- 0
+  cap.probs[3,i,t,6] <- 0
+  cap.probs[3,i,t,7] <- 0
+  cap.probs[3,i,t,8] <- 0
 }
 }
-
   for (i in 1:M){
-    z[i, 1] <- 0 # All individuals are in state 0 at t=1
-    a[i,1] <- 1
+    z[i, 1] <- 1 # All individuals are in state 0 at t=1
     for (t in 2:n.occ){
-      z[i,t] ~ dbern(z[i,t-1]*mean.phi+a[i,t-1]*gamma[t-1]) # Actual state (1=alive, 0=dead or not yet entered)
-      state[i,t]<-ifelse(z[i,t]<1, 1, 2)
-      y[i,t] ~ dcat(cap.probs[state[i,t],i,t,])
-      a[i,t] <- a[i,t-1]*equals(z[i,t], 0)
+      z[i,t] ~ dcat(ps[z[i,t-1], i, t-1,]) # Actual state (1=alive, 0=dead or not yet entered)
+      y[i,t] ~ dcat(cap.probs[z[i,t], i, t-1,])
     }
   }
 
@@ -77,16 +97,23 @@ for(i in 1:M){
   }
   psi<-sum(cprob[])
 
-    for(t in 2:n.occ){
-#      al[i, t-1]<-equals(z[i,t], 1)
-       N[t]<-sum(z[,t])
-    }
-    
   for(i in 1:M){
-   alive[i]<-sum(z[i,])
-   w[i]<-1-equals(alive[i], 0)
+    for(t in 2:n.occ){
+       al[i, t-1]<-equals(z[i,t], 2)
+    }
+    for(t in 1:(n.occ-1)){
+      d[i,t]<-equals(z[i,t]-al[i,t], 0) 
+      }
+      alive[i]<-sum(al[i,])
+  }
+  for(t in 1:(n.occ-1)){
+      N[t]<-sum(al[,t])
+      B[t]<-sum(d[,t])
     }
 
+for(i in 1:M){
+  w[i]<-1-equals(alive[i], 0)
+}
 Nsuper<-sum(w[])
 }
 

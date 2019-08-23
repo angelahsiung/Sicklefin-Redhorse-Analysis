@@ -1,11 +1,12 @@
 rm(list=ls())
 
 # Set working directory
-basedirectory <- "C:/Users/solit/Documents/GitHub/Sicklefin-Redhorse-Analysis"
+#basedirectory <- "C:/Users/solit/Documents/GitHub/Sicklefin-Redhorse-Analysis"
+basedirectory <- "C:/Users/brang/Documents/GitHub/Sicklefin-Redhorse-Analysis"
 setwd(basedirectory)
 
 # Prepare packages
-list.of.packages <- c("stringr", "reshape2", "lubridate", "tidyverse", "rjags","jagsUI", "coda","parallel")
+list.of.packages <- c("stringr", "reshape2", "lubridate", "tidyverse", "rjags","jagsUI", "coda","parallel", "doParallel", "foreach")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)){install.packages(new.packages)}
 lapply(list.of.packages, require, character.only = TRUE)
@@ -119,7 +120,7 @@ for (i in 1:nrow(ms.cap.hist)){
 }
 
 brasstown.CH<-ms.cap.hist[,-1]
-apply(brasstown.CH, 2, as.numeric)
+brasstown.CH<-apply(brasstown.CH, 2, as.numeric)
 brasstown.CH<-as.matrix(brasstown.CH)
 
 # Convert CJS capture history to CH for JS model
@@ -198,14 +199,14 @@ params <- c("pFyke", "pSeine", "pPit", "mean.phi", "ER", "Nsuper", "N", "psi")
 #codaOnly<-c("Nsuper", "N", "B", "psi")
 
 # MCMC settings
-ni <- 300
+ni <- 500
 nt <- 1
 nb <- 100
-nc <- 1
+nc <- 3
 
 ## Run models
 
-# ER=500, nz=1800, nb=100, nt=1, ni=500, nc=1
+# ER=500, nz=1500, nb=10000, nt=1, ni=100000, nc=3
 ptm <- proc.time()
 sr.ms.js.jm13 <- jags.model(data=dat3, inits = inits,
                             file = "srh_js_phi0_gam0_pGearEffort.jags",
@@ -220,7 +221,7 @@ ptm <- proc.time()
 
 sr.ms.js.jm14 <- autojags(dat3, inits, params,
                           model.file = "srh_js_phi0_gam0_pGearEffort.jags",
-                          n.chains = nc, n.adapt = 2000, iter.increment=20000,
+                          n.chains = nc, n.adapt = 100, iter.increment=100,
                           n.burnin=nb,n.thin=nt,
                           parallel=TRUE,n.cores=3,Rhat.limit=1.1, max.iter=ni, verbose=TRUE)
 
@@ -233,6 +234,12 @@ plot(sr.ms.js.jc13, ask=TRUE)
 out.jc13<-summary(sr.ms.js.jc13)
 stats.jc13<-out.jc13$statistics
 quants.jc13<-out.jc13$quantiles
+
+summary(sr.ms.js.jc14)
+plot(sr.ms.js.jm14, ask=TRUE)
+out.jc14<-summary(sr.ms.js.jc14)
+stats.jc14<-out.jc14$statistics
+quants.jc14<-out.jc14$quantiles
 
 #save(sr.ms.js.jc13, file="SRH_js_phi0_gamTime_pGearEffort_100000.gzip")
 

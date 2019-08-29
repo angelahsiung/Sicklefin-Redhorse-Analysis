@@ -199,14 +199,14 @@ params <- c("pFyke", "pSeine", "pPit", "mean.phi", "ER", "Nsuper", "N", "psi")
 #codaOnly<-c("Nsuper", "N", "B", "psi")
 
 # MCMC settings
-ni <- 500
+ni <- 50000
 nt <- 1
-nb <- 100
+nb <- 5000
 nc <- 3
 
 ## Run models
 
-# ER=500, nz=1500, nb=10000, nt=1, ni=100000, nc=3
+# ER=500, nz=1500, nb=100, nt=1, ni=300, nc=3
 ptm <- proc.time()
 sr.ms.js.jm13 <- jags.model(data=dat3, inits = inits,
                             file = "srh_js_phi0_gam0_pGearEffort.jags",
@@ -216,7 +216,7 @@ sr.ms.js.jc13 <- coda.samples(sr.ms.js.jm13, params, n.iter=ni)
 
 proc.time() - ptm
 
-#ER=500, nz=1800, nb=10000, nt=1, ni=200000, nc=3
+#ER=500, nz=1500, nb=100, nt=1, ni=300, nc=3
 ptm <- proc.time()
 
 sr.ms.js.jm14 <- autojags(dat3, inits, params,
@@ -227,7 +227,16 @@ sr.ms.js.jm14 <- autojags(dat3, inits, params,
 
 proc.time() - ptm
 
+#ER=500, nz=1500, nb=10000, nt=1, ni=50000, nc=3 
+ptm <- proc.time()
 
+sr.ms.js.jm15 <- autojags(dat3, inits, params,
+                          model.file = "srh_js_phi0_gam0_pGearEffort.jags",
+                          n.chains = nc, n.adapt = 2000, iter.increment=1000,
+                          n.burnin=nb,n.thin=nt,
+                          parallel=TRUE,n.cores=3,Rhat.limit=1.1, max.iter=ni, verbose=TRUE)
+
+proc.time() - ptm
 
 summary(sr.ms.js.jc13)
 plot(sr.ms.js.jc13, ask=TRUE)
@@ -235,9 +244,9 @@ out.jc13<-summary(sr.ms.js.jc13)
 stats.jc13<-out.jc13$statistics
 quants.jc13<-out.jc13$quantiles
 
-summary(sr.ms.js.jc14)
+sr.ms.js.jm14
 plot(sr.ms.js.jm14, ask=TRUE)
-out.jc14<-summary(sr.ms.js.jc14)
+out.jc14<-summary(sr.ms.js.jm14)
 stats.jc14<-out.jc14$statistics
 quants.jc14<-out.jc14$quantiles
 

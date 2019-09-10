@@ -1,8 +1,8 @@
 rm(list=ls())
 
 # Set working directory
-#basedirectory <- "C:/Users/solit/Documents/GitHub/Sicklefin-Redhorse-Analysis"
-basedirectory <- "C:/Users/brang/Documents/GitHub/Sicklefin-Redhorse-Analysis"
+basedirectory <- "C:/Users/solit/Documents/GitHub/Sicklefin-Redhorse-Analysis"
+#basedirectory <- "C:/Users/brang/Documents/GitHub/Sicklefin-Redhorse-Analysis"
 setwd(basedirectory)
 
 # Prepare packages
@@ -11,7 +11,7 @@ new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"
 if(length(new.packages)){install.packages(new.packages)}
 lapply(list.of.packages, require, character.only = TRUE)
 
-#load("SRH_js_phi0_gamTime-pGearEffort_100000.gzip")
+load("SRH_js_phi0_gam0_pGearEffort_10000.gzip")
 
 ###################################################
 ## Operational years (occasion) for each gear type
@@ -20,24 +20,81 @@ lapply(list.of.packages, require, character.only = TRUE)
 ## PIT: 2017-2018 (5-6)
 ###################################################
 
-
-#### Creating matrix of individual and tag type ("1" for HDX tags, and "0" for FDX-B tags)
-
 # Read in capture data
-raw.dat<-read.csv("Sicklefin_Capture_Data.csv")
-raw.dat<-raw.dat[raw.dat$Sex!="Unknown",] # remove rows where Sex is "Unknown"
+raw.dat <- read.csv("Sicklefin_Capture_Data.csv")
+raw.dat<-raw.dat[raw.dat$Sex!="Unknown",] # remove rows where Sex is "Unknown" (4 individuals), three of the fish do not have first capture record (ID: 300, 9974, 9988, 9989)
+raw.dat <- raw.dat[raw.dat$Individual_ID!=303,] # remove ID 303 because it was captured by boat shocking in Valley
 raw.dat$CollectDate<-strptime(raw.dat$CollectDate, format="%d-%b-%y") # convert date format
-raw.dat$CollectYear.1<-ifelse(is.na(raw.dat$CollectDate), raw.dat$CollectYear, year(raw.dat$CollectDate))
 
+
+##############################
+##### summary statistics #####
+##############################
+
+### Summaries by captures
+nrow(raw.dat) # total captures
+nrow(raw.dat[raw.dat$Sex=="Male",]) # total male captures
+nrow(raw.dat[raw.dat$Sex=="Female",]) # total female captures
+data.frame(with(raw.dat, table(CollectYear, PriMethod))) # number of captures by year and method
+
+### Summaries by individuals
+length(unique(raw.dat$Individual_ID)) # number of individual fish in the data set
+
+# number of individuals captured per year
+caps.by.year <- with(raw.dat, table(Individual_ID, CollectYear))
+caps.by.year <- data.frame(ifelse(caps.by.year>1, 1, caps.by.year))
+caps.by.year <- colSums(caps.by.year)
+
+# number of individuals captured by sex
+sex.table <- data.frame(with(raw.dat, table(Individual_ID, Sex)))
+sex.table <- sex.table[sex.table$Freq>0,]
+nrow(sex.table[sex.table$Sex=="Male",]) # total number of males captured = 178
+nrow(sex.table[sex.table$Sex=="Female",]) # total number of females captured = 103
+
+# number of individuals captured by each gear
+ind.gear.year <- with(raw.dat, table(raw.dat$Individual_ID, PriMethod, CollectYear))
+
+# Function for calculating numbers captured by each gear type per year
+caps.gear.year <- function(x){
+  caps.per.year <- ind.gear.year[, x,] 
+  caps.per.year[caps.per.year>1] <- 1
+  print(colSums(caps.per.year)) }
+
+fyke.caps.year <- caps.gear.year("Trapping (Weir or Fyke)") # number of fish captured by fyke each year
+seine.caps.year <- caps.gear.year("Seining") # number of fish captured by seine each year
+PIT.caps.year <- caps.gear.year("PIT Array") # number of fish captured by antenna each year
+
+caps.table<-data.frame(Seine=seine.caps.year, Fyke=fyke.caps.year, Antenna=PIT.caps.year) # put it all in a table
+
+### Summaries by captures and tag info
+x <- raw.dat[raw.dat$First_Capture=="TRUE" & raw.dat$PIT_Type=="HDX",]
+x <- with(x, table(x$Individual_ID, x$CollectYear))
+x[x>1] <- 1
+new.hdx.year <- colSums(x) # new individuals tagged with HDX each year
+number.of.hdx <- rep(NA, 4)
+for (i in 1:length(new.hdx.year)){
+  number.of.hdx[i] <- sum(new.hdx.year[1:i])
+} # total number of individuals with HDX tags in the population each year (cumulative)
+
+### Summaries of captures by site (PIT Arrays)
+### Site ID: lower Brasstown PIT: 47, upper Brasstown PIT: 37, lower Valley PIT: 48, upper Valley PIT: 40
+site.cap <- with(raw.dat, table(raw.dat$Individual_ID, raw.dat$Site_ID, raw.dat$CollectYear))
+site.cap <- site.cap[,c("37", "40", "47", "48"),]
+site.cap[site.cap>1]<-1
+antenna.site.caps <- apply(site.cap, c(2:3), sum) # number of individuals captured by each PIT antenna by year
+
+
+########################################
+##### Data formatting for analysis #####
+########################################
+brasstown<-raw.dat[raw.dat$Waterbody!="Valley River",]
+
+### Creating matrix of individual and tag type ("1" for HDX tags, and "0" for FDX-B tags)
 # Convert tag type
-raw.dat$Tag_Type<-ifelse(raw.dat$PIT_Type=="FDX-B",0,1) # if fish was tagged wtih FDX-B, cannot be detected by PIT antenna. If tagged with HDX tag, can be detected by antenna
+brasstown$Tag_Type<-ifelse(brasstown$PIT_Type=="FDX-B",0,1) # if fish was tagged wtih FDX-B, cannot be detected by PIT antenna. If tagged with HDX tag, can be detected by antenna
 
+tag.dat<-data.frame(with(brasstown, table(brasstown$Individual_ID, brasstown$Tag_Type, brasstown$CollectYear)))
 
-#Pulling out Brasstown data
-brasstown<-raw.dat[raw.dat$Waterbody=="Brasstown Creek",]
-
-# Create table with individual and tag detectability over time ("0" for FDX-B tags, "1" for HDX tags)
-tag.dat<-data.frame(with(brasstown, table(brasstown$Individual_ID, brasstown$Tag_Type, brasstown$CollectYear.1)))
 tag.dat<-tag.dat[tag.dat$Freq>0,]
 tag.dat<-spread(tag.dat, Var3, Var2)
 
@@ -60,17 +117,17 @@ for(i in 1:nrow(tag.dat)){
     }
 }        # create matrix of individual detectability by PIT antenna based on the tag they received
 
-
 # prepare tag data for model
 tag.dat<-tag.dat[,1:5]
 colnames(tag.dat)<-NULL
 tag.dat[is.na(tag.dat)]<-0
 tag.dat[6,5:ncol(tag.dat)]<-1 #new HDX tag added to this individual in 2018
 tag.dat <- apply(tag.dat, 2, as.numeric)
+View(cbind(sort(unique(brasstown$Individual_ID)),tag.dat))
 
-##### Preparing data for model
+### Prepare capture data for model
 # organize data into pivot table
-ms.dat<-dcast(brasstown, brasstown$Individual_ID+brasstown$CollectYear.1~brasstown$PriMethod)
+ms.dat<-dcast(brasstown, brasstown$Individual_ID+brasstown$CollectYear~brasstown$PriMethod)
 ms.dat<-ms.dat[rowSums(ms.dat[,3:5])>0,] # keep rows where individual was captured at least once
 
 for(i in 1:nrow(ms.dat)){
@@ -157,7 +214,7 @@ effort<-read.csv("SRH_Effort_v2.csv", header=T)
 fykeEffort <- tapply(effort$UB_FYKE, effort$Year, sum)
 fykeEffort<- c(0, 0, 0, 3, 5, 4) # number of sampling days
 pitEffort <- aggregate(effort[,4:5], by=list(effort$Year), sum)
-pitEffort <- c(0, 0, 0, 0, 66, 186)
+pitEffort <- c(0, 0, 0, 0, 66, 186) # only brasstown antennae
 
 # Bundle data
 dat3<-list(y = brasstown.CH.aug, n.occ = dim(brasstown.CH.aug)[2], M=dim(brasstown.CH.aug)[1], fykeEffort=fykeEffort, pitEffort=pitEffort, tag.dat.aug=as.matrix(tag.dat.aug)) #Sex=c(Sex, rep(NA, nz))
@@ -191,17 +248,18 @@ z.init<-js.multistate.init(CH.du, nz)
 
 inits <- function() {list(z=cbind(rep(NA, nrow(z.init)),z.init[,-1]), mean.phi=runif(1, 0, 1)
                           ,p0seine=runif(1, 0, 1), p0fyke=runif(1, 0, 1), p0pit=runif(1, 0, 0.01) 
-                          #,gamma=runif(5, 0, 1) 
-                          ,ER=runif(1, 0, 1))}
+                          ,gamma=runif(5, 0, 1) 
+                          #,ER=runif(1, 0, 1)
+                          )}
 
 # Parameters monitored
-params <- c("pFyke", "pSeine", "pPit", "mean.phi", "ER", "Nsuper", "N", "psi") 
+params <- c("pFyke", "pSeine", "pPit", "mean.phi", "gamma", "Nsuper", "N", "psi") 
 #codaOnly<-c("Nsuper", "N", "B", "psi")
 
 # MCMC settings
-ni <- 50000
+ni <- 300
 nt <- 1
-nb <- 5000
+nb <- 1
 nc <- 3
 
 ## Run models
@@ -220,10 +278,10 @@ proc.time() - ptm
 ptm <- proc.time()
 
 sr.ms.js.jm14 <- autojags(dat3, inits, params,
-                          model.file = "srh_js_phi0_gam0_pGearEffort.jags",
-                          n.chains = nc, n.adapt = 100, iter.increment=100,
-                          n.burnin=nb,n.thin=nt,
-                          parallel=TRUE,n.cores=3,Rhat.limit=1.1, max.iter=ni, verbose=TRUE)
+                          model.file = "srh_js_phi0_gamTime_pGearEffort.jags",
+                          n.chains = nc, n.adapt = 2000, iter.increment=1000,
+                          n.burnin=nb, n.thin=nt,
+                          parallel=TRUE, n.cores=3, Rhat.limit=1.1, max.iter=60000, verbose=TRUE)
 
 proc.time() - ptm
 
@@ -233,8 +291,8 @@ ptm <- proc.time()
 sr.ms.js.jm15 <- autojags(dat3, inits, params,
                           model.file = "srh_js_phi0_gam0_pGearEffort.jags",
                           n.chains = nc, n.adapt = 2000, iter.increment=1000,
-                          n.burnin=nb,n.thin=nt,
-                          parallel=TRUE,n.cores=3,Rhat.limit=1.1, max.iter=ni, verbose=TRUE)
+                          n.burnin=nb, n.thin=nt,
+                          parallel=TRUE, n.cores=3, Rhat.limit=1.1, max.iter=ni, verbose=TRUE)
 
 proc.time() - ptm
 
@@ -250,12 +308,32 @@ out.jc14<-summary(sr.ms.js.jm14)
 stats.jc14<-out.jc14$statistics
 quants.jc14<-out.jc14$quantiles
 
-#save(sr.ms.js.jc13, file="SRH_js_phi0_gamTime_pGearEffort_100000.gzip")
-
 # plotting results
+det.prob<-c(sr.ms.js.jm15$mean$pSeine[2:6], sr.ms.js.jm15$mean$pFyke[2:6], sr.ms.js.jm15$mean$pPit[2:6])
+lower<-c(sr.ms.js.jm15$q2.5$pSeine[2:6], sr.ms.js.jm15$q2.5$pFyke[2:6], sr.ms.js.jm15$q2.5$pPit[2:6])
+upper<-c(sr.ms.js.jm15$q97.5$pSeine[2:6], sr.ms.js.jm15$q97.5$pFyke[2:6], sr.ms.js.jm15$q97.5$pPit[2:6])
+det.prob<-ifelse(det.prob==0, NA, det.prob)
 
 
+det.prob<-data.frame(cbind(det.prob, lower, upper, c(rep("Seine",5), rep("Fyke", 5), rep("Antenna", 5)), c(rep(2014:2018, 3))))
+colnames(det.prob)<-c("Estimate", "Lower", "Upper", "Gear", "Year")
+det.prob$Estimate<-as.numeric(as.character(det.prob$Estimate))
+det.prob$Lower<-as.numeric(as.character(det.prob$Lower))
+det.prob$Upper<-as.numeric(as.character(det.prob$Upper))
+det.prob.plot<-ggplot(det.prob, aes(y=Estimate, x=Year, group=Gear, ymin=Lower, ymax=Upper))
+det.prob.plot+geom_pointrange(aes(colour=Gear), position=position_dodge(width=c(0.2, 0)), size = 1, alpha = 0.7)+labs(y="Detection Probability")+theme(axis.text=element_text(size=20), axis.title=element_text(size=20, face="bold"))+expand_limits(y=c(0,1))+scale_y_continuous(expand = c(0, 0))+theme(plot.margin=margin(1,1,1,1,"cm"), legend.title=element_text(size=16), legend.text=element_text(size=15))
 
+pop.size<-data.frame(cbind(Estimate=sr.ms.js.jm15$mean$N, Lower=sr.ms.js.jm15$q2.5$N, Upper=sr.ms.js.jm15$q97.5$N))
+pop.size<-pop.size[3:6,]
+pop.size<-cbind(pop.size, Year=c(2015:2018))
+pop.size.plot<-ggplot(pop.size, aes(Year, y=Estimate, ymin=Lower, ymax=Upper))
+pop.size.plot+geom_pointrange() + labs(y="Population Size")+theme(axis.text=element_text(size=20), axis.title=element_text(size=20, face="bold"))
 
+phi<-data.frame(cbind(Survival=sr.ms.js.jm15$mean$mean.phi, Lower=sr.ms.js.jm15$q2.5$mean.phi,Upper=sr.ms.js.jm15$q97.5$mean.phi))
 
+plot(phi$Survival, cex=1.5, pch=16)
+segments(1, phi$Lower, 1, phi$Upper)
 
+recruits<-data.frame(cbind(Recruits=sr.ms.js.jm15$mean$ER, Lower=sr.ms.js.jm15$q2.5$ER,Upper=sr.ms.js.jm15$q97.5$ER))
+plot(recruits$Recruits, cex=1.5, pch=16)
+segments(1, recruits$Lower, 1, recruits$Upper)

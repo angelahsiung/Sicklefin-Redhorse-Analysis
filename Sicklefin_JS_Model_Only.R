@@ -11,7 +11,7 @@ new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"
 if(length(new.packages)){install.packages(new.packages)}
 lapply(list.of.packages, require, character.only = TRUE)
 
-load("SRH_js_phi0_gam0_pGearEffort_10000.gzip")
+#load("SRH_js_phi0_gam0_pGearEffort_10000.gzip")
 
 ###################################################
 ## Operational years (occasion) for each gear type
@@ -217,7 +217,10 @@ pitEffort <- aggregate(effort[,4:5], by=list(effort$Year), sum)
 pitEffort <- c(0, 0, 0, 0, 66, 186) # only brasstown antennae
 
 # Bundle data
-dat3<-list(y = brasstown.CH.aug, n.occ = dim(brasstown.CH.aug)[2], M=dim(brasstown.CH.aug)[1], fykeEffort=fykeEffort, pitEffort=pitEffort, tag.dat.aug=as.matrix(tag.dat.aug)) #Sex=c(Sex, rep(NA, nz))
+dat3<-list(y = brasstown.CH.aug, n.occ = dim(brasstown.CH.aug)[2], M=dim(brasstown.CH.aug)[1], 
+           fykeEffort=fykeEffort, 
+           #pitEffort=pitEffort, 
+           tag.dat.aug=as.matrix(tag.dat.aug)) #Sex=c(Sex, rep(NA, nz))
 
 # Initial values
 
@@ -246,21 +249,24 @@ z.init<-js.multistate.init(CH.du, nz)
 
 
 
-inits <- function() {list(z=cbind(rep(NA, nrow(z.init)),z.init[,-1]), mean.phi=runif(1, 0, 1)
-                          ,p0seine=runif(1, 0, 1), p0fyke=runif(1, 0, 1), p0pit=runif(1, 0, 0.01) 
-                          ,gamma=runif(5, 0, 1) 
-                          #,ER=runif(1, 0, 1)
+inits <- function() {list(z=cbind(rep(NA, nrow(z.init)),z.init[,-1]), mean.phi=runif(1, 0, 1),
+                          p0seine = runif(1, 0, 1), 
+                          p0fyke = runif(1, 0, 1), 
+                          p0Pit1 = runif(1, 0, 1),
+                          p0Pit2 = runif(1, 0, 1),
+                          #gamma=runif(5, 0, 1) 
+                          ER=runif(1, 0, 1)
                           )}
 
 # Parameters monitored
-params <- c("pFyke", "pSeine", "pPit", "mean.phi", "gamma", "Nsuper", "N", "psi") 
+params <- c("pFyke", "pSeine", "p0Pit1", "p0Pit2", "mean.phi", "ER", "B", "Nsuper", "N", "psi") 
 #codaOnly<-c("Nsuper", "N", "B", "psi")
 
 # MCMC settings
-ni <- 300
+ni <- 150
 nt <- 1
-nb <- 1
-nc <- 3
+nb <- 100
+nc <- 1
 
 ## Run models
 
@@ -290,11 +296,12 @@ ptm <- proc.time()
 
 sr.ms.js.jm15 <- autojags(dat3, inits, params,
                           model.file = "srh_js_phi0_gam0_pGearEffort.jags",
-                          n.chains = nc, n.adapt = 2000, iter.increment=1000,
-                          n.burnin=nb, n.thin=nt,
-                          parallel=TRUE, n.cores=3, Rhat.limit=1.1, max.iter=ni, verbose=TRUE)
+                          n.chains = 3, n.adapt = 2000, iter.increment=2000,
+                          n.burnin=1000, n.thin=nt,
+                          parallel=TRUE, n.cores=3, Rhat.limit=1.1, max.iter=250000, verbose=TRUE)
 
 proc.time() - ptm
+
 
 summary(sr.ms.js.jc13)
 plot(sr.ms.js.jc13, ask=TRUE)

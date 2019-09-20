@@ -96,7 +96,7 @@ for(i in 1:M){
        al[i, t-1]<-equals(z[i,t], 1)
     }
     for(t in 1:(n.occ-1)){
-       d[i,t] <- equals(a[i,t]-z[i,t+1], 0)
+       d[i,t] <- equals(al[i,t]-z[i,t], 1)
     }
     alive[i] <- sum(al[i,])
   }

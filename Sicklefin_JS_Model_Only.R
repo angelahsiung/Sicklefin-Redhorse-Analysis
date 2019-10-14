@@ -186,7 +186,7 @@ brasstown.CH[is.na(brasstown.CH)]<-1 # if NA, assign 1 for "not seen"
 CH.du<-as.matrix(cbind(rep(1, dim(brasstown.CH)[1]), brasstown.CH)) # add extra (dummy) sampling occ in the beginning (Kerry and Schaub 2012)
 colnames(CH.du)<-NULL
 head(CH.du)
-nz<-1500# augmented individuals
+nz<-1700# augmented individuals
 
 # augmenting individuals to original capture history
 brasstown.CH.aug<-rbind(CH.du, matrix(1, ncol=dim(CH.du)[2], nrow=nz)) 
@@ -254,19 +254,19 @@ inits <- function() {list(z=cbind(rep(NA, nrow(z.init)),z.init[,-1]), mean.phi=r
                           p0fyke = runif(1, 0, 1), 
                           p0Pit1 = runif(1, 0, 1),
                           p0Pit2 = runif(1, 0, 1),
-                          #gamma=runif(5, 0, 1) 
-                          ER=runif(1, 0, 1)
+                          gamma=runif(5, 0, 1) 
+                          #ER=runif(1, 0, 1)
                           )}
 
 # Parameters monitored
-params <- c("pFyke", "pSeine", "p0Pit1", "p0Pit2", "mean.phi", "ER", "B", "Nsuper", "N", "psi") 
+params <- c("pFyke", "pSeine", "p0Pit1", "p0Pit2", "mean.phi", "gamma", "B", "Nsuper", "N", "psi") 
 #codaOnly<-c("Nsuper", "N", "B", "psi")
 
 # MCMC settings
 ni <- 150
 nt <- 1
 nb <- 100
-nc <- 1
+nc <- 3
 
 ## Run models
 
@@ -295,7 +295,7 @@ proc.time() - ptm
 ptm <- proc.time()
 
 sr.ms.js.jm15 <- autojags(dat3, inits, params,
-                          model.file = "srh_js_phi0_gam0_pGearEffort.jags",
+                          model.file = "srh_js_phi0_gamTime_pGearEffort.jags",
                           n.chains = 3, n.adapt = 2000, iter.increment=2000,
                           n.burnin=1000, n.thin=nt,
                           parallel=TRUE, n.cores=3, Rhat.limit=1.1, max.iter=250000, verbose=TRUE)
@@ -303,17 +303,45 @@ sr.ms.js.jm15 <- autojags(dat3, inits, params,
 proc.time() - ptm
 
 
+ptm <- proc.time()
+
+sr.ms.js.jm16 <- jags.model(data=dat3, inits = inits,
+                            file = "srh_js_phi0_gamTime_pGearEffort.jags",
+                            n.chains = 3, n.adapt = 2000, quiet = F)
+
+sr.ms.js.jc16 <- coda.samples(sr.ms.js.jm16, params, n.thin=nt, n.iter=300000)
+
+
+proc.time() - ptm
+
+
+ptm <- proc.time()
+
+sr.ms.js.jm17 <- autojags(dat3, inits, params,
+                          model.file = "srh_js_phi0_gamTime_pGearEffort.jags",
+                          n.chains = 3, n.adapt = 2000, iter.increment=2000,
+                          n.burnin=1000, n.thin=1,
+                          parallel=TRUE, n.cores=3, Rhat.limit=1.1, max.iter=300000, verbose=TRUE)
+
+proc.time() - ptm
+
+#save(sr.ms.js.jc16, file="SRH_js-phi0_gamTime_pGearEffort_200000_Brasstown.gzip")
+
 summary(sr.ms.js.jc13)
 plot(sr.ms.js.jc13, ask=TRUE)
 out.jc13<-summary(sr.ms.js.jc13)
 stats.jc13<-out.jc13$statistics
 quants.jc13<-out.jc13$quantiles
 
-sr.ms.js.jm14
-plot(sr.ms.js.jm14, ask=TRUE)
-out.jc14<-summary(sr.ms.js.jm14)
-stats.jc14<-out.jc14$statistics
-quants.jc14<-out.jc14$quantiles
+
+plot(sr.ms.js.jc16, ask=TRUE)
+out.jc16<-summary(sr.ms.js.jc16)
+stats.jc16<-out.jc16$statistics
+quants.jc16<-out.jc16$quantiles
+
+plot(stats.jc16[6:10, 1], type="l", ylim=c(0, 2000))
+lines(quants.jc16[6:10, 1], lty=2)
+lines(quants.jc16[6:10, 5], lty=2)
 
 # plotting results
 det.prob<-c(sr.ms.js.jm15$mean$pSeine[2:6], sr.ms.js.jm15$mean$pFyke[2:6], sr.ms.js.jm15$mean$pPit[2:6])

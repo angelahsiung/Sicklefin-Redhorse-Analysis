@@ -2,7 +2,7 @@ rm(list=ls())
 
 # Set working directory
 basedirectory <- "C:/Users/solit/Documents/GitHub/Sicklefin-Redhorse-Analysis"
-#basedirectory <- "C:/Users/brang/Documents/GitHub/Sicklefin-Redhorse-Analysis"
+basedirectory <- "C:/Users/brang/Documents/GitHub/Sicklefin-Redhorse-Analysis"
 setwd(basedirectory)
 
 # Prepare packages
@@ -123,7 +123,7 @@ colnames(tag.dat)<-NULL
 tag.dat[is.na(tag.dat)]<-0
 tag.dat[6,5:ncol(tag.dat)]<-1 #new HDX tag added to this individual in 2018
 tag.dat <- apply(tag.dat, 2, as.numeric)
-View(cbind(sort(unique(brasstown$Individual_ID)),tag.dat))
+#View(cbind(sort(unique(brasstown$Individual_ID)),tag.dat))
 
 ### Prepare capture data for model
 # organize data into pivot table
@@ -211,10 +211,10 @@ z.known<-rbind(z.known, matrix(NA, ncol=dim(CH.du)[2], nrow=nz))
 
 # Effor data
 effort<-read.csv("SRH_Effort_v2.csv", header=T)
-fykeEffort <- tapply(effort$UB_FYKE, effort$Year, sum)
+#fykeEffort <- tapply(effort$UB_FYKE, effort$Year, sum)
 fykeEffort<- c(0, 0, 0, 3, 5, 4) # number of sampling days
-pitEffort <- aggregate(effort[,4:5], by=list(effort$Year), sum)
-pitEffort <- c(0, 0, 0, 0, 66, 186) # only brasstown antennae
+#pitEffort <- aggregate(effort[,4:5], by=list(effort$Year), sum)
+#pitEffort <- c(0, 0, 0, 0, 66, 186) # only brasstown antennae
 
 # Bundle data
 dat3<-list(y = brasstown.CH.aug, n.occ = dim(brasstown.CH.aug)[2], M=dim(brasstown.CH.aug)[1], 
@@ -254,19 +254,19 @@ inits <- function() {list(z=cbind(rep(NA, nrow(z.init)),z.init[,-1]), mean.phi=r
                           p0fyke = runif(1, 0, 1), 
                           p0Pit1 = runif(1, 0, 1),
                           p0Pit2 = runif(1, 0, 1),
-                          gamma=runif(5, 0, 1) 
-                          #ER=runif(1, 0, 1)
+                          #gamma=runif(5, 0, 1) 
+                          ER=runif(1, 0, 1)
                           )}
 
 # Parameters monitored
-params <- c("pFyke", "pSeine", "p0Pit1", "p0Pit2", "mean.phi", "gamma", "B", "Nsuper", "N", "psi") 
+params <- c("pFyke", "pSeine", "p0Pit1", "p0Pit2", "mean.phi", "ER", "B", "Nsuper", "N", "psi") 
 #codaOnly<-c("Nsuper", "N", "B", "psi")
 
 # MCMC settings
 ni <- 150
 nt <- 1
 nb <- 100
-nc <- 3
+nc <- 1
 
 ## Run models
 
@@ -295,37 +295,19 @@ proc.time() - ptm
 ptm <- proc.time()
 
 sr.ms.js.jm15 <- autojags(dat3, inits, params,
-                          model.file = "srh_js_phi0_gamTime_pGearEffort.jags",
-                          n.chains = 3, n.adapt = 2000, iter.increment=2000,
-                          n.burnin=1000, n.thin=nt,
-                          parallel=TRUE, n.cores=3, Rhat.limit=1.1, max.iter=250000, verbose=TRUE)
-
-proc.time() - ptm
-
-
-ptm <- proc.time()
-
-sr.ms.js.jm16 <- jags.model(data=dat3, inits = inits,
-                            file = "srh_js_phi0_gamTime_pGearEffort.jags",
-                            n.chains = 3, n.adapt = 2000, quiet = F)
-
-sr.ms.js.jc16 <- coda.samples(sr.ms.js.jm16, params, n.thin=nt, n.iter=300000)
-
-
-proc.time() - ptm
-
-
-ptm <- proc.time()
-
-sr.ms.js.jm17 <- autojags(dat3, inits, params,
-                          model.file = "srh_js_phi0_gamTime_pGearEffort.jags",
-                          n.chains = 3, n.adapt = 2000, iter.increment=2000,
+                          model.file = "srh_js_phi0_gam0_pGearEffort.jags",
+                          n.chains = 3, n.adapt = 1000, iter.increment=500,
                           n.burnin=1000, n.thin=1,
-                          parallel=TRUE, n.cores=3, Rhat.limit=1.1, max.iter=300000, verbose=TRUE)
+                          parallel=TRUE, n.cores=3, Rhat.limit=1.1, max.iter=30000, verbose=TRUE)
 
 proc.time() - ptm
 
-#save(sr.ms.js.jc16, file="SRH_js-phi0_gamTime_pGearEffort_200000_Brasstown.gzip")
+save(sr.ms.js.jm15, file="SRH_phi0_gam0_pGearEffort_30000_Brasstown.gzip")
+
+sr.ms.js.jm15
+plot(sr.ms.js.jm15, ask=TRUE)
+
+sr.ms.js.jm15.2 <- update(sr.ms.js.jm15, params, n.adapt=NULL, n.iter=4000, n.thin=1, verbose=TRUE)
 
 summary(sr.ms.js.jc13)
 plot(sr.ms.js.jc13, ask=TRUE)
@@ -333,15 +315,11 @@ out.jc13<-summary(sr.ms.js.jc13)
 stats.jc13<-out.jc13$statistics
 quants.jc13<-out.jc13$quantiles
 
-
-plot(sr.ms.js.jc16, ask=TRUE)
-out.jc16<-summary(sr.ms.js.jc16)
-stats.jc16<-out.jc16$statistics
-quants.jc16<-out.jc16$quantiles
-
-plot(stats.jc16[6:10, 1], type="l", ylim=c(0, 2000))
-lines(quants.jc16[6:10, 1], lty=2)
-lines(quants.jc16[6:10, 5], lty=2)
+sr.ms.js.jm14
+plot(sr.ms.js.jm14, ask=TRUE)
+out.jc14<-summary(sr.ms.js.jm14)
+stats.jc14<-out.jc14$statistics
+quants.jc14<-out.jc14$quantiles
 
 # plotting results
 det.prob<-c(sr.ms.js.jm15$mean$pSeine[2:6], sr.ms.js.jm15$mean$pFyke[2:6], sr.ms.js.jm15$mean$pPit[2:6])
